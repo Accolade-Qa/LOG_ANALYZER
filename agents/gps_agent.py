@@ -2,8 +2,7 @@ from agents.base_agent import BaseAgent
 from reports.anomaly_collector import collect
 from pathlib import Path
 import re
-import time
-import yaml
+import yaml  # type: ignore
 
 
 class GPSAgent(BaseAgent):
