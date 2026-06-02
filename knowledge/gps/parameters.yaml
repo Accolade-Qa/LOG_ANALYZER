@@ -1,0 +1,395 @@
+# Multi-Domain Telemetry Parameter Registry
+# Version: 1.0
+# Purpose: Centralized definition for 1000+ parameters across GPS, CAN, MQTT, and other domains
+# Scalability: Add parameters for any domain without creating new files
+
+# ==============================================================================
+# GPS DOMAIN PARAMETERS (10+ params shown, easily extendable)
+# ==============================================================================
+gps:
+  parameters:
+    fix_quality:
+      name: "Fix Quality"
+      symbol: "FIX QUA"
+      type: "integer"
+      valid_range: [0, 1]
+      units: "level"
+      description: "0=No Fix, 1=Valid Fix"
+      critical: true
+      rule_id: "GPS_001"
+
+    satellite_count:
+      name: "Satellite Count"
+      symbol: "SAT"
+      type: "integer"
+      valid_range: [0, 32]
+      units: "count"
+      description: "Number of visible satellites"
+      thresholds:
+        weak: [0, 3]
+        acceptable: [4, 7]
+        strong: [8, 32]
+      critical: true
+      rule_id: "GPS_002"
+
+    latitude:
+      name: "Latitude"
+      symbol: "LAT"
+      type: "float"
+      valid_range: [-90.0, 90.0]
+      units: "degrees"
+      description: "Geographic latitude"
+      invalid_value: 0.0
+      critical: true
+      rule_id: "GPS_003"
+
+    longitude:
+      name: "Longitude"
+      symbol: "LONG"
+      type: "float"
+      valid_range: [-180.0, 180.0]
+      units: "degrees"
+      description: "Geographic longitude"
+      invalid_value: 0.0
+      critical: true
+      rule_id: "GPS_003"
+
+    speed_kmph:
+      name: "Speed"
+      symbol: "SPEED_KMPH"
+      type: "float"
+      valid_range: [0.0, 180.0]
+      units: "km/h"
+      description: "Vehicle speed"
+      critical: false
+      rule_id: "GPS_004"
+
+    altitude:
+      name: "Altitude"
+      symbol: "ALT"
+      type: "float"
+      valid_range: [0, 8848]
+      units: "meters"
+      description: "Altitude above sea level"
+      critical: false
+      rule_id: "GPS_006"
+
+    hdop:
+      name: "Horizontal Dilution of Precision"
+      symbol: "HDOP"
+      type: "float"
+      valid_range: [0.5, 50.0]
+      units: "ratio"
+      description: "Position accuracy (< 2.0 excellent, < 5.0 good)"
+      thresholds:
+        excellent: [0.5, 2.0]
+        good: [2.0, 5.0]
+        poor: [5.0, 50.0]
+      critical: false
+      rule_id: "GPS_005"
+
+    vdop:
+      name: "Vertical Dilution of Precision"
+      symbol: "VDOP"
+      type: "float"
+      valid_range: [0.5, 50.0]
+      units: "ratio"
+      description: "Altitude accuracy"
+      critical: false
+
+    pdop:
+      name: "Position Dilution of Precision"
+      symbol: "PDOP"
+      type: "float"
+      valid_range: [0.5, 50.0]
+      units: "ratio"
+      description: "Overall position accuracy"
+      critical: false
+
+    heading:
+      name: "Heading"
+      symbol: "HEADING DEG"
+      type: "float"
+      valid_range: [0.0, 360.0]
+      units: "degrees"
+      description: "Direction of travel"
+      critical: false
+
+    utc_time:
+      name: "UTC Time"
+      symbol: "UTC"
+      type: "string"
+      pattern: "^\\d{2}:\\d{2}:\\d{2}$"
+      units: "HH:MM:SS"
+      description: "UTC timestamp from GPS"
+      critical: true
+      rule_id: "R_GPS_001"
+
+    date:
+      name: "Date"
+      symbol: "DT"
+      type: "string"
+      pattern: "^\\d{6}$"
+      units: "DDMMYY"
+      description: "Date from GPS"
+      critical: true
+      rule_id: "R_GPS_001"
+
+  # GPS-specific anomaly rules
+  anomaly_rules:
+    no_satellite_acquisition:
+      id: "GPS_KN_001"
+      condition: "SAT == 0 AND FIX_QUA == 0"
+      persistence_required: "120 seconds"
+      severity: "HIGH"
+      root_causes:
+        - "antenna disconnected"
+        - "indoor/no-sky condition"
+        - "GPS RF interference"
+
+    satellite_visible_no_fix:
+      id: "GPS_KN_002"
+      condition: "SAT >= 4 AND FIX_QUA == 0"
+      persistence_required: "30 seconds"
+      severity: "HIGH"
+      root_causes:
+        - "timing synchronization issue"
+        - "GPS software stack bug"
+        - "receiver initialization incomplete"
+
+    invalid_coordinates:
+      id: "GPS_KN_003"
+      condition: "FIX_QUA == 1 AND (LAT == 0.0 OR LONG == 0.0)"
+      severity: "MEDIUM"
+      root_causes:
+        - "UART parser error"
+        - "data corruption"
+
+    low_satellite_count:
+      id: "GPS_KN_004"
+      condition: "SAT < 4 AND SAT > 0"
+      severity: "MEDIUM"
+      root_causes:
+        - "weak RF signal"
+        - "antenna position suboptimal"
+        - "multipath interference"
+
+  # GPS baseline expectations
+  baseline_expectations:
+    cold_start:
+      fix_time_range: [60, 120]
+      units: "seconds"
+      description: "Power-on from 0% state"
+
+    hot_start:
+      fix_time_range: [10, 30]
+      units: "seconds"
+      description: "Resume from valid state"
+
+    stabilization_window:
+      duration: [30, 120]
+      units: "seconds"
+      description: "Allow transient zero values during boot"
+
+    normal_satellite_range:
+      range: [5, 15]
+      units: "count"
+      description: "Expected satellites in normal operation"
+
+
+# ==============================================================================
+# CAN DOMAIN PARAMETERS (Template for CAN parameters)
+# ==============================================================================
+can:
+  parameters:
+    engine_rpm:
+      name: "Engine RPM"
+      symbol: "ENG_RPM"
+      type: "integer"
+      valid_range: [0, 8000]
+      units: "rpm"
+      description: "Engine revolutions per minute"
+      critical: true
+
+    vehicle_speed:
+      name: "Vehicle Speed"
+      symbol: "VEH_SPEED"
+      type: "float"
+      valid_range: [0.0, 200.0]
+      units: "km/h"
+      description: "CAN-based vehicle speed from ECU"
+      critical: true
+
+    engine_temperature:
+      name: "Engine Temperature"
+      symbol: "ENG_TEMP"
+      type: "float"
+      valid_range: [-40.0, 150.0]
+      units: "Celsius"
+      description: "Coolant temperature"
+      critical: false
+
+    accelerator_position:
+      name: "Accelerator Pedal Position"
+      symbol: "ACCEL_POS"
+      type: "float"
+      valid_range: [0.0, 100.0]
+      units: "percent"
+      description: "Throttle percentage"
+      critical: false
+
+    # Add more CAN parameters here...
+
+  anomaly_rules:
+    engine_overheating:
+      id: "CAN_KN_001"
+      condition: "ENG_TEMP > 110"
+      severity: "HIGH"
+      root_causes:
+        - "cooling system failure"
+        - "low coolant level"
+        - "thermostat issue"
+
+    engine_stall:
+      id: "CAN_KN_002"
+      condition: "ENG_RPM == 0 AND ACCEL_POS > 20"
+      severity: "MEDIUM"
+      root_causes:
+        - "fuel pressure issue"
+        - "ignition problem"
+
+
+# ==============================================================================
+# MQTT DOMAIN PARAMETERS (Template for MQTT parameters)
+# ==============================================================================
+mqtt:
+  parameters:
+    message_count:
+      name: "MQTT Message Count"
+      symbol: "MQTT_COUNT"
+      type: "integer"
+      valid_range: [0, 1000000]
+      units: "count"
+      description: "Number of MQTT messages received"
+      critical: false
+
+    connection_status:
+      name: "MQTT Connection Status"
+      symbol: "MQTT_STATUS"
+      type: "string"
+      valid_values: ["connected", "disconnected", "reconnecting"]
+      description: "MQTT broker connection state"
+      critical: true
+
+    message_latency:
+      name: "Message Latency"
+      symbol: "MQTT_LATENCY"
+      type: "float"
+      valid_range: [0.0, 60000.0]
+      units: "milliseconds"
+      description: "Publish-to-receive latency"
+      critical: false
+
+    # Add more MQTT parameters here...
+
+  anomaly_rules:
+    mqtt_disconnected:
+      id: "MQTT_KN_001"
+      condition: "MQTT_STATUS == 'disconnected'"
+      severity: "HIGH"
+      root_causes:
+        - "network connectivity loss"
+        - "broker unavailable"
+        - "authentication failure"
+
+    high_latency:
+      id: "MQTT_KN_002"
+      condition: "MQTT_LATENCY > 5000"
+      severity: "MEDIUM"
+      root_causes:
+        - "network congestion"
+        - "broker overload"
+
+
+# ==============================================================================
+# BATTERY DOMAIN PARAMETERS (Template for Battery parameters)
+# ==============================================================================
+battery:
+  parameters:
+    voltage:
+      name: "Battery Voltage"
+      symbol: "BATT_V"
+      type: "float"
+      valid_range: [3.0, 4.2]
+      units: "volts"
+      description: "Battery cell voltage"
+      critical: true
+
+    current:
+      name: "Battery Current"
+      symbol: "BATT_I"
+      type: "float"
+      valid_range: [-100.0, 100.0]
+      units: "amperes"
+      description: "Charging/discharging current"
+      critical: true
+
+    temperature:
+      name: "Battery Temperature"
+      symbol: "BATT_TEMP"
+      type: "float"
+      valid_range: [-20.0, 60.0]
+      units: "Celsius"
+      description: "Battery cell temperature"
+      critical: true
+
+    state_of_charge:
+      name: "State of Charge"
+      symbol: "BATT_SOC"
+      type: "float"
+      valid_range: [0.0, 100.0]
+      units: "percent"
+      description: "Battery charge percentage"
+      critical: true
+
+    # Add more Battery parameters here...
+
+  anomaly_rules:
+    low_voltage:
+      id: "BATT_KN_001"
+      condition: "BATT_V < 3.0"
+      severity: "CRITICAL"
+      root_causes:
+        - "battery degradation"
+        - "over-discharge"
+        - "cell failure"
+
+    over_temperature:
+      id: "BATT_KN_002"
+      condition: "BATT_TEMP > 50"
+      severity: "HIGH"
+      root_causes:
+        - "high current draw"
+        - "ambient heat"
+        - "poor thermal management"
+
+
+# ==============================================================================
+# GLOBAL VALIDATION RULES (Cross-domain)
+# ==============================================================================
+global_rules:
+  timestamp_validation:
+    id: "GLOBAL_001"
+    description: "All messages must have valid timestamp"
+    severity: "HIGH"
+
+  data_completeness:
+    id: "GLOBAL_002"
+    description: "Critical parameters must be present in every message"
+    severity: "HIGH"
+
+  sequence_continuity:
+    id: "GLOBAL_003"
+    description: "Message sequence should not have large gaps"
+    severity: "MEDIUM"
+

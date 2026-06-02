@@ -1,0 +1,44 @@
+parameters:
+  message_count:
+    name: "MQTT Message Count"
+    symbol: "MQTT_COUNT"
+    type: "integer"
+    valid_range: [0, 1000000]
+    units: "count"
+    description: "Number of MQTT messages received"
+    critical: false
+
+  connection_status:
+    name: "MQTT Connection Status"
+    symbol: "MQTT_STATUS"
+    type: "string"
+    valid_values: ["connected", "disconnected", "reconnecting"]
+    description: "MQTT broker connection state"
+    critical: true
+
+  message_latency:
+    name: "Message Latency"
+    symbol: "MQTT_LATENCY"
+    type: "float"
+    valid_range: [0.0, 60000.0]
+    units: "milliseconds"
+    description: "Publish-to-receive latency"
+    critical: false
+
+anomaly_rules:
+  mqtt_disconnected:
+    id: "MQTT_KN_001"
+    condition: "MQTT_STATUS == 'disconnected'"
+    severity: "HIGH"
+    root_causes:
+      - "network connectivity loss"
+      - "broker unavailable"
+      - "authentication failure"
+
+  high_latency:
+    id: "MQTT_KN_002"
+    condition: "MQTT_LATENCY > 5000"
+    severity: "MEDIUM"
+    root_causes:
+      - "network congestion"
+      - "broker overload"

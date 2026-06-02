@@ -1,0 +1,55 @@
+parameters:
+  voltage:
+    name: "Battery Voltage"
+    symbol: "BATT_V"
+    type: "float"
+    valid_range: [3.0, 4.2]
+    units: "volts"
+    description: "Battery cell voltage"
+    critical: true
+
+  current:
+    name: "Battery Current"
+    symbol: "BATT_I"
+    type: "float"
+    valid_range: [-100.0, 100.0]
+    units: "amperes"
+    description: "Charging/discharging current"
+    critical: true
+
+  temperature:
+    name: "Battery Temperature"
+    symbol: "BATT_TEMP"
+    type: "float"
+    valid_range: [-20.0, 60.0]
+    units: "Celsius"
+    description: "Battery cell temperature"
+    critical: true
+
+  state_of_charge:
+    name: "State of Charge"
+    symbol: "BATT_SOC"
+    type: "float"
+    valid_range: [0.0, 100.0]
+    units: "percent"
+    description: "Battery charge percentage"
+    critical: true
+
+anomaly_rules:
+  low_voltage:
+    id: "BATT_KN_001"
+    condition: "BATT_V < 3.0"
+    severity: "CRITICAL"
+    root_causes:
+      - "battery degradation"
+      - "over-discharge"
+      - "cell failure"
+
+  over_temperature:
+    id: "BATT_KN_002"
+    condition: "BATT_TEMP > 50"
+    severity: "HIGH"
+    root_causes:
+      - "high current draw"
+      - "ambient heat"
+      - "poor thermal management"

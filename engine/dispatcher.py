@@ -1,14 +1,13 @@
-from analyzers.gps_analyzer import gps_analyzer
-from analyzers.mqtt_analyzer import mqtt_analyzer
-from analyzers.can_analyzer import can_analyzer
+from agents.gps_agent import gps_agent
 
+# GPS-only integration phase
 registry = {
-    'GPS': gps_analyzer,
-    'MQTT': mqtt_analyzer,
-    'CAN': can_analyzer
+    "GPS": gps_agent,
 }
 
+
 def dispatch(event):
-    analyzer = registry.get(event['type'])
-    if analyzer:
-        analyzer.handle(event)
+    """Dispatch events to appropriate agent (GPS-only phase)"""
+    agent = registry.get(event["type"])
+    if agent:
+        agent.handle(event)

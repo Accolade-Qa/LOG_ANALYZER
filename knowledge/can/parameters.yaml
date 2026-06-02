@@ -1,0 +1,55 @@
+parameters:
+  engine_rpm:
+    name: "Engine RPM"
+    symbol: "CAN_RPM"
+    type: "integer"
+    valid_range: [0, 8000]
+    units: "rpm"
+    description: "Engine speed in revolutions per minute"
+    critical: true
+
+  vehicle_speed:
+    name: "Vehicle Speed"
+    symbol: "CAN_SPEED"
+    type: "float"
+    valid_range: [0.0, 250.0]
+    units: "km/h"
+    description: "Vehicle speed reported by CAN bus"
+    critical: true
+
+  engine_temperature:
+    name: "Engine Temperature"
+    symbol: "CAN_ENG_TEMP"
+    type: "float"
+    valid_range: [-40.0, 150.0]
+    units: "Celsius"
+    description: "Engine coolant or oil temperature"
+    critical: true
+
+  accelerator_position:
+    name: "Accelerator Position"
+    symbol: "CAN_ACCEL"
+    type: "float"
+    valid_range: [0.0, 100.0]
+    units: "percent"
+    description: "Throttle or accelerator pedal position"
+    critical: false
+
+anomaly_rules:
+  engine_overheating:
+    id: "CAN_KN_001"
+    condition: "CAN_ENG_TEMP > 110"
+    severity: "HIGH"
+    root_causes:
+      - "Cooling system failure"
+      - "Low coolant level"
+      - "Heavy engine load"
+
+  engine_stall:
+    id: "CAN_KN_002"
+    condition: "CAN_RPM < 300 and CAN_SPEED > 0"
+    severity: "MEDIUM"
+    root_causes:
+      - "Fuel delivery issue"
+      - "Ignition problem"
+      - "Sensor fault"
