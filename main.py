@@ -8,7 +8,7 @@ from llm.summary_agent import generate_ai_summary
 import os
 
 # print(os.getenv("OPENAI_API_KEY"))
-print(os.getenv("GEMINI_API_KEY"))
+# print(os.getenv("GEMINI_API_KEY"))
 
 LOG_FILE = "logs/FOTA_REL_18_861564061380138_To_REL_05.log"
 
