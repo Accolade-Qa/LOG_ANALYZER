@@ -5,9 +5,10 @@ from pathlib import Path
 
 anomalies = []
 
-# Get the absolute path to the anomalies file
-ANOMALIES_FILE = Path(__file__).parent / "raw_anomalies.json"
+# Get the absolute path to the anomalies file in the artifacts directory
+ANOMALIES_FILE = Path(__file__).parent.parent / "artifacts" / "raw_anomalies.json"
 ANOMALY_ID_PATTERN = re.compile(r"^(?P<id>[A-Z]+_KN_\d+):\s*(?P<description>.+)$")
+
 
 
 def _normalize_issue(issue):
@@ -71,6 +72,18 @@ def _build_anomaly(
     return anomaly
 
 
+def clear_anomalies():
+    global anomalies
+    anomalies = []
+    save_anomalies()
+
+
+def save_anomalies():
+    ANOMALIES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(ANOMALIES_FILE, "w", encoding="utf-8") as f:
+        json.dump(anomalies, f, indent=2)
+
+
 def collect(
     issue, source=None, category=None, severity=None, event=None, metadata=None
 ):
@@ -84,6 +97,5 @@ def collect(
     )
 
     anomalies.append(anomaly)
-    ANOMALIES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(ANOMALIES_FILE, "w", encoding="utf-8") as f:
-        json.dump(anomalies, f, indent=2)
+
+

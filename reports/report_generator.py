@@ -77,9 +77,9 @@ def _best_examples(anomalies):
 
 
 def generate_report_cards():
-    base_dir = Path(__file__).parent
-    raw_path = base_dir / "raw_anomalies.json"
-    report_path = base_dir / "report_cards.md"
+    base_dir = Path(__file__).parent.parent
+    raw_path = base_dir / "artifacts" / "raw_anomalies.json"
+    report_path = base_dir / "artifacts" / "report_cards.md"
 
     if not raw_path.is_file():
         raise FileNotFoundError(f"Raw anomalies file not found: {raw_path}")
@@ -158,9 +158,10 @@ def generate_report_cards():
 
 
 def generate_final_report():
-    base_dir = Path(__file__).parent
-    raw_path = base_dir / "raw_anomalies.json"
-    report_path = base_dir / "final_report.md"
+    base_dir = Path(__file__).parent.parent
+    raw_path = base_dir / "artifacts" / "raw_anomalies.json"
+    report_path = base_dir / "artifacts" / "final_report.md"
+
 
     if not raw_path.is_file():
         raise FileNotFoundError(f"Raw anomalies file not found: {raw_path}")

@@ -9,29 +9,37 @@ CAN_PREFIX = rf"{TIMESTAMP_PATTERN}{LEVEL_COMPONENT_PATTERN}\[CAN\]\s+"
 PATTERN_DEFINITIONS = [
     (
         "GPS",
-        re.compile(rf"{PLA_PREFIX}GPS\s+RX", re.IGNORECASE),
+        re.compile(
+            rf"(?:{PLA_PREFIX}GPS\s+RX|\$GPS[, ])", re.IGNORECASE
+        ),
     ),
     (
         "MQTT",
-        re.compile(rf"{PLA_PREFIX}NET\b.*\bMQTT\b", re.IGNORECASE),
+        re.compile(
+            rf"(?:{PLA_PREFIX}NET\b.*\bMQTT\b|MQTT_STATUS|MQTT_LATENCY|\bMQTT\s*[:=])",
+            re.IGNORECASE,
+        ),
     ),
     (
         "CAN",
         re.compile(
-            rf"(?:{CAN_PREFIX}|{PLA_PREFIX}(?:CAN\b|UDS\s+Session\s+Timeout|DTC\b|FaultVal|IGN_status|##INCR))",
+            rf"(?:{CAN_PREFIX}|{PLA_PREFIX}(?:CAN\b|UDS\s+Session\s+Timeout|DTC\b|FaultVal|IGN_status|##INCR)|\$CAN2|\$CANFD|\bUDS\s+Session\s+Timeout\b|\bDTC\b)",
             re.IGNORECASE,
         ),
     ),
     (
         "BATTERY",
         re.compile(
-            rf"{PLA_PREFIX}ANALOG\b.*\b(?:INT\s+BATT|EXT\s+BATT|TMPR|AN)\b",
+            rf"(?:{PLA_PREFIX}ANALOG\b.*\b(?:INT\s+BATT|EXT\s+BATT|TMPR|AN)\b|\$ANALOG|\bINT\s+BATT\b)",
             re.IGNORECASE,
         ),
     ),
     (
         "NET",
-        re.compile(rf"(?:{PLA_PREFIX}NET\b|{NET_PREFIX})", re.IGNORECASE),
+        re.compile(
+            rf"(?:{PLA_PREFIX}NET\b|{NET_PREFIX}|\$GSM\b|\bCSQ\b|\bCREG\b|\bCGREG\b)",
+            re.IGNORECASE,
+        ),
     ),
 ]
 
@@ -41,3 +49,4 @@ def classify(line):
         if pattern.search(line):
             return {"type": event_type, "raw": line}
     return None
+

@@ -45,23 +45,35 @@ class MQTTAgent(BaseAgent):
 
         return params
 
-    def _check_anomalies(self, params):
+    def _check_anomalies(self, params, event=None):
         if params.get("connection_status") == "disconnected":
             rule = self.anomaly_rules.get("mqtt_disconnected", {})
             issue = f"{rule.get('id', 'MQTT_KN_001')}: MQTT disconnected"
-            if rule:
+            if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="MQTT",
+                category="mqtt",
+                severity="high",
+                event=event,
+            )
 
         latency = params.get("message_latency")
         if latency is not None and latency > 5000:
             rule = self.anomaly_rules.get("high_latency", {})
             issue = f"{rule.get('id', 'MQTT_KN_002')}: High MQTT latency ({latency} ms)"
-            if rule:
+            if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="MQTT",
+                category="mqtt",
+                severity="medium",
+                event=event,
+            )
 
     def handle(self, event):
         self.events_received += 1
@@ -69,7 +81,7 @@ class MQTTAgent(BaseAgent):
         if not params:
             return
 
-        self._check_anomalies(params)
+        self._check_anomalies(params, event)
 
 
 mqtt_agent = MQTTAgent()

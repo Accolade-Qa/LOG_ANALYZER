@@ -1,1 +1,16 @@
+# Environment Variables
 .env
+.env.local
+
+# Generated Analysis Output Artifacts
+artifacts/
+
+# Python Caches & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# IDE Configuration
+.vscode/
+.idea/

@@ -80,8 +80,19 @@ class GPSAgent(BaseAgent):
 
     def _parse_gps_line(self, line):
         params = {}
-        param_defs = self.parameters.get("parameters", {})
+        if "$GPS," in line:
+            parts = line.split("$GPS,")[1].split(",")
+            if len(parts) >= 6:
+                try:
+                    params["fix_quality"] = int(parts[2].strip())
+                    params["latitude"] = float(parts[3].strip())
+                    params["longitude"] = float(parts[4].strip())
+                    params["satellite_count"] = int(parts[5].strip().split()[0])
+                    return params
+                except (ValueError, IndexError):
+                    pass
 
+        param_defs = self.parameters.get("parameters", {})
         for param_name, param_def in param_defs.items():
             symbol = param_def.get("symbol", "")
             param_type = param_def.get("type", "")
@@ -121,7 +132,7 @@ class GPSAgent(BaseAgent):
 
         return None
 
-    def _check_critical_parameters(self, params):
+    def _check_critical_parameters(self, params, event=None):
         param_defs = self.parameters.get("parameters", {})
         for param_name, param_def in param_defs.items():
             if not param_def.get("critical", False):
@@ -130,15 +141,27 @@ class GPSAgent(BaseAgent):
             if param_name not in params:
                 issue = f"Critical parameter missing: {param_name}"
                 self.add_anomaly(issue)
-                collect(issue)
+                collect(
+                    issue,
+                    source="GPS",
+                    category="gps",
+                    severity="low",
+                    event=event,
+                )
                 continue
 
             error = self._validate_parameter_range(param_name, params[param_name])
             if error:
                 self.add_anomaly(error)
-                collect(error)
+                collect(
+                    error,
+                    source="GPS",
+                    category="gps",
+                    severity="medium",
+                    event=event,
+                )
 
-    def _check_coordinate_validity(self, params):
+    def _check_coordinate_validity(self, params, event=None):
         lat = params.get("latitude", 0)
         long = params.get("longitude", 0)
         fix_quality = params.get("fix_quality")
@@ -146,9 +169,15 @@ class GPSAgent(BaseAgent):
         if fix_quality == 1 and (lat == 0 or long == 0):
             issue = f"GPS invalid coordinates: LAT={lat}, LONG={long} (FIX QUA={fix_quality})"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="high",
+                event=event,
+            )
 
-    def _check_satellite_health(self, params):
+    def _check_satellite_health(self, params, event=None):
         sat = params.get("satellite_count")
         if sat is None:
             return
@@ -164,26 +193,50 @@ class GPSAgent(BaseAgent):
             health = "weak" if sat < 4 else "acceptable"
             issue = f"GPS low satellite count: {sat} (expected {normal_min}-{normal_max}, {health} signal)"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="medium",
+                event=event,
+            )
 
-    def _match_anomaly_patterns(self, params):
+    def _match_anomaly_patterns(self, params, event=None):
         sat = params.get("satellite_count", 0)
         fix_quality = params.get("fix_quality")
 
         if sat == 0 and fix_quality == 0:
             issue = "GPS_KN_001: No satellite acquisition (SAT=0, FIX=0)"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="high",
+                event=event,
+            )
 
         elif sat >= 4 and fix_quality == 0:
             issue = f"GPS_KN_002: Satellite visible but no fix (SAT={sat}, FIX=0)"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="high",
+                event=event,
+            )
 
         elif sat < 4 and sat > 0:
             issue = f"GPS_KN_004: Low satellite count (SAT={sat})"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="medium",
+                event=event,
+            )
 
     def handle(self, event):
         line = event["raw"]
@@ -201,10 +254,11 @@ class GPSAgent(BaseAgent):
         if "longitude" in params:
             self.gps_state["last_long"] = params["longitude"]
 
-        self._check_critical_parameters(params)
-        self._check_coordinate_validity(params)
-        self._check_satellite_health(params)
-        self._match_anomaly_patterns(params)
+        self._check_critical_parameters(params, event)
+        self._check_coordinate_validity(params, event)
+        self._check_satellite_health(params, event)
+        self._match_anomaly_patterns(params, event)
+
 
 
 gps_agent = GPSAgent()

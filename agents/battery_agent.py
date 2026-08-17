@@ -28,6 +28,16 @@ class BatteryAgent(BaseAgent):
     def _parse_battery_line(self, line):
         params = {}
 
+        if "$ANALOG," in line:
+            parts = line.split("$ANALOG,")[1].split(",")
+            if len(parts) >= 3:
+                try:
+                    params["voltage"] = float(parts[2].strip())
+                    params["temperature"] = float(parts[3].strip())
+                    return params
+                except (ValueError, IndexError):
+                    pass
+
         voltage_match = re.search(r"INT\s+BATT\s*([\d.]+)V", line, re.IGNORECASE)
         soc_match = re.search(
             r"INT\s+BATT\s*[\d.]+V\s*([\d.]+)\s*PERCENT", line, re.IGNORECASE
@@ -58,7 +68,7 @@ class BatteryAgent(BaseAgent):
 
         return None
 
-    def _check_critical_parameters(self, params):
+    def _check_critical_parameters(self, params, event=None):
         param_defs = self.parameters.get("parameters", {})
         for param_name, param_def in param_defs.items():
             if not param_def.get("critical", False):
@@ -66,32 +76,56 @@ class BatteryAgent(BaseAgent):
             if param_name not in params:
                 issue = f"Critical battery parameter missing: {param_name}"
                 self.add_anomaly(issue)
-                collect(issue)
+                collect(
+                    issue,
+                    source="BATTERY",
+                    category="battery",
+                    severity="low",
+                    event=event,
+                )
                 continue
             error = self._validate_parameter_range(param_name, params[param_name])
             if error:
                 self.add_anomaly(error)
-                collect(error)
+                collect(
+                    error,
+                    source="BATTERY",
+                    category="battery",
+                    severity="medium",
+                    event=event,
+                )
 
-    def _check_anomaly_rules(self, params):
+    def _check_anomaly_rules(self, params, event=None):
         voltage = params.get("voltage")
         temperature = params.get("temperature")
 
         if voltage is not None and voltage < 3.0:
             rule = self.anomaly_rules.get("low_voltage", {})
             issue = f"{rule.get('id', 'BATT_KN_001')}: Low battery voltage ({voltage}V)"
-            if rule:
+            if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="BATTERY",
+                category="battery",
+                severity="high",
+                event=event,
+            )
 
         if temperature is not None and temperature > 50:
             rule = self.anomaly_rules.get("over_temperature", {})
             issue = f"{rule.get('id', 'BATT_KN_002')}: High battery temperature ({temperature}C)"
-            if rule:
+            if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
             self.add_anomaly(issue)
-            collect(issue)
+            collect(
+                issue,
+                source="BATTERY",
+                category="battery",
+                severity="high",
+                event=event,
+            )
 
     def handle(self, event):
         self.events_received += 1
@@ -99,8 +133,9 @@ class BatteryAgent(BaseAgent):
         if not params:
             return
 
-        self._check_critical_parameters(params)
-        self._check_anomaly_rules(params)
+        self._check_critical_parameters(params, event)
+        self._check_anomaly_rules(params, event)
+
 
 
 battery_agent = BatteryAgent()
