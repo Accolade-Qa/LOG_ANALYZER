@@ -20,7 +20,11 @@ from llm.summary_agent import generate_ai_summary
 from parser.gps_log_reader import process_log
 from parser.live_stream_reader import stream_growing_file, stream_uart_port
 from reports.anomaly_collector import clear_anomalies, save_anomalies
-from reports.report_generator import generate_final_report, generate_report_cards
+from reports.report_generator import (
+    generate_final_report,
+    generate_html_dashboard,
+    generate_report_cards,
+)
 
 from config_loader import config
 
@@ -117,6 +121,7 @@ def main():
     # Generate all reports
     report_cards_path = generate_report_cards()
     final_report_path = generate_final_report()
+    dashboard_html_path = generate_html_dashboard()
 
     # Generate AI summary
     generate_ai_summary()
@@ -128,6 +133,7 @@ def main():
     print(f" - Report Cards:       {report_cards_path}")
     print(f" - Final Report:        {final_report_path}")
     print(f" - AI Summary:         {ai_summary_path}")
+    print(f" - HTML Dashboard:     {dashboard_html_path}")
 
 
 

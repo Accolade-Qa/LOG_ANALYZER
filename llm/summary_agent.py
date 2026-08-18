@@ -1,8 +1,18 @@
 import json
 import os
+import ssl
+import time
+import urllib.error
 import urllib.request
+from collections import Counter
 from pathlib import Path
+
 from config_loader import config
+
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 
 def _render_anomaly_text(anomaly):
@@ -25,19 +35,20 @@ def generate_ai_summary():
     if not anomalies:
         summary_text = "# Telemetry AI Summary & Root Cause Analysis\n\nNo anomalies were detected during log analysis."
     else:
-        unique = {}
-        by_source = {}
+        unique = Counter()
+        by_source = Counter()
         for anomaly in anomalies:
             text = _render_anomaly_text(anomaly)
             source = anomaly.get("source") or "General"
-            unique[text] = unique.get(text, 0) + 1
-            by_source[source] = by_source.get(source, 0) + 1
+            unique[text] += 1
+            by_source[source] += 1
 
+        top_anomalies = unique.most_common(25)
         anomalies_summary = "\n".join(
-            [f"- **{text}**: {count} occurrence(s)" for text, count in unique.items()]
+            [f"- **{text}**: {count} occurrence(s)" for text, count in top_anomalies]
         )
         source_summary = "\n".join(
-            [f"- **{src}**: {cnt} event(s)" for src, cnt in by_source.items()]
+            [f"- **{src}**: {cnt} event(s)" for src, cnt in by_source.most_common()]
         )
 
         fallback_report = f"""# Telemetry AI Summary & Root Cause Analysis
@@ -48,7 +59,7 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
 ### Subsystem Impact Breakdown
 {source_summary}
 
-### Key Anomaly Observations
+### Key Anomaly Observations (Top 25 Most Frequent)
 {anomalies_summary}
 
 ## Predictive Root Cause Analysis
@@ -65,39 +76,66 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
 - **Power Optimization**: Verify internal battery charging voltage and decouple analog sensor supply.
 """
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
         ai_summary_path.parent.mkdir(parents=True, exist_ok=True)
         with open(ai_summary_path, "w", encoding="utf-8") as f:
             f.write(fallback_report)
         return
 
-    url = config["ai"]["api_url"]
-    if "?" not in url:
-        url += f"?key={api_key}"
-    else:
-        url += f"&key={api_key}"
-
-    headers = {"Content-Type": "application/json"}
+    model_name = config["ai"].get("model", "gemini-3.6-flash")
     prompt = f"Analyze the following telemetry anomaly summary and produce a structured root cause analysis and action plan:\n\n{fallback_report}"
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    summary_text = None
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(data).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
+    # Method 1: Official google-genai Python SDK
+    if genai is not None:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            if response and response.text:
+                summary_text = response.text
+        except Exception as e:
+            print(f"google-genai SDK call failed ({e}). Falling back to REST HTTPS client...")
 
-    try:
-        with urllib.request.urlopen(req) as response:
-            res_data = json.loads(response.read().decode("utf-8"))
-            summary_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(f"Failed to query Gemini API ({e}). Writing local structured synthesis.")
-        summary_text = fallback_report
+    # Method 2: Fallback REST Client with SSL context & retry loop
+    if summary_text is None:
+        url = config["ai"]["api_url"]
+        if "?" not in url:
+            url += f"?key={api_key}"
+        else:
+            url += f"&key={api_key}"
+
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LOG_ANALYZER/1.0",
+            "Connection": "close",
+        }
+        data = {"contents": [{"parts": [{"text": prompt}]}]}
+        ssl_context = ssl.create_default_context()
+        max_retries = 3
+
+        for attempt in range(1, max_retries + 1):
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, context=ssl_context, timeout=60) as response:
+                    res_data = json.loads(response.read().decode("utf-8"))
+                    summary_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    break
+            except Exception as e:
+                if attempt < max_retries:
+                    time.sleep(1.0 * attempt)
+                else:
+                    print(f"Failed to query Gemini API after {max_retries} attempt(s) ({e}). Writing local structured synthesis.")
+                    summary_text = fallback_report
 
     ai_summary_path.parent.mkdir(parents=True, exist_ok=True)
     with open(ai_summary_path, "w", encoding="utf-8") as f:
         f.write(summary_text)
-

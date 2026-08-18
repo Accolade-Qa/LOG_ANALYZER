@@ -40,6 +40,9 @@ anomaly_rules:
     id: "BATT_KN_001"
     condition: "BATT_V < 3.0"
     severity: "CRITICAL"
+    why_it_happened: "Internal or external battery supply voltage dropped below 3.0V operating threshold."
+    what_to_look_up: "Inspect battery charge management IC registers, bulk decoupling capacitors, and current spikes during cellular transmission."
+    suggested_fix: "Inspect battery health and charging circuits; low voltage may indicate failing cells or power droop."
     root_causes:
       - "battery degradation"
       - "over-discharge"
@@ -49,6 +52,9 @@ anomaly_rules:
     id: "BATT_KN_002"
     condition: "BATT_TEMP > 50"
     severity: "HIGH"
+    why_it_happened: "Internal battery temperature exceeded 50°C thermal safety limit."
+    what_to_look_up: "Check ECU thermal pad contact, enclosure ventilation, and NTC thermistor sensor calibration."
+    suggested_fix: "Cool the battery pack and verify thermal management systems."
     root_causes:
       - "high current draw"
       - "ambient heat"

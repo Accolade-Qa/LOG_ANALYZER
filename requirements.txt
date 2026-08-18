@@ -1,3 +1,4 @@
 python-dotenv
 pyyaml
 pyserial>=3.5
+google-genai

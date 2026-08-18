@@ -13,7 +13,9 @@ DEFAULT_CONFIG = {
         "report_cards_md": "artifacts/report_cards.md",
         "final_report_md": "artifacts/final_report.md",
         "ai_summary_md": "artifacts/ai_summary.md",
+        "report_dashboard_html": "artifacts/report_dashboard.html",
     },
+
     "uart": {
         "default_port": "COM3",
         "default_baudrate": 115200,
@@ -24,9 +26,10 @@ DEFAULT_CONFIG = {
         "stop_on_idle_sec": 5.0,
     },
     "ai": {
-        "model": "gemini-2.5-flash",
-        "api_url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        "model": "gemini-3.6-flash",
+        "api_url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
     },
+
     "severity_order": {
         "critical": 0,
         "high": 1,

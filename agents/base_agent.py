@@ -122,6 +122,7 @@ class BaseAgent:
             "duration_seconds": session.get("duration_seconds"),
             "occurrence_count": session.get("occurrence_count"),
             "status": "RESOLVED",
+            "start_raw_line": session.get("start_raw_line"),
             "recovery_line": raw_line,
             "recovery_message": recovery_message,
         }
@@ -164,6 +165,8 @@ class BaseAgent:
                 "duration_seconds": session.get("duration_seconds"),
                 "occurrence_count": session.get("occurrence_count"),
                 "status": "UNRESOLVED",
+                "start_raw_line": session.get("start_raw_line"),
+                "recovery_line": session.get("end_raw_line"),
             }
 
             collect(
@@ -174,3 +177,4 @@ class BaseAgent:
                 event=session.get("event"),
                 metadata=metadata,
             )
+
