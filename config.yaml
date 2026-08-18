@@ -1,0 +1,41 @@
+# ==============================================================================
+# LOG_ANALYZER Global Runtime Configuration
+# ==============================================================================
+
+# Directory and File Paths
+paths:
+  log_dir: "logs"
+  artifact_dir: "artifacts"
+  default_log_file: "logs/REL18_TO_REL24.log"
+  raw_anomalies_json: "artifacts/raw_anomalies.json"
+  report_cards_md: "artifacts/report_cards.md"
+  final_report_md: "artifacts/final_report.md"
+  ai_summary_md: "artifacts/ai_summary.md"
+
+# Live UART Hardware Communication Settings
+uart:
+  default_port: "COM3"
+  default_baudrate: 115200
+  timeout: 1.0
+
+# Live File Tailing Settings (tail -f)
+live_tail:
+  poll_interval: 0.1
+  stop_on_idle_sec: 5.0
+
+# AI / LLM Configuration
+ai:
+  model: "gemini-2.5-flash"
+  api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
+# Severity Order Mapping
+severity_order:
+  critical: 0
+  high: 1
+  medium: 2
+  low: 3
+
+# Performance and Parsing Settings
+parsing:
+  chunk_size: 50000
+  buffer_flush_size: 1000

@@ -3,11 +3,14 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from config_loader import config
+
 anomalies = []
 
-# Get the absolute path to the anomalies file in the artifacts directory
-ANOMALIES_FILE = Path(__file__).parent.parent / "artifacts" / "raw_anomalies.json"
+# Get the absolute path to the anomalies file from global configuration
+ANOMALIES_FILE = Path(__file__).parent.parent / config["paths"]["raw_anomalies_json"]
 ANOMALY_ID_PATTERN = re.compile(r"^(?P<id>[A-Z]+_KN_\d+):\s*(?P<description>.+)$")
+
 
 
 
@@ -62,6 +65,10 @@ def _build_anomaly(
     if event:
         anomaly["metadata"]["raw_line"] = event.get("raw")
         anomaly["metadata"]["event_type"] = event.get("type")
+        if "line_number" in event and event["line_number"] is not None:
+            anomaly["metadata"].setdefault("start_line", event["line_number"])
+            anomaly["metadata"].setdefault("end_line", event["line_number"])
+
 
     if anomaly["category"] is None and anomaly["source"]:
         anomaly["category"] = str(anomaly["source"]).lower()

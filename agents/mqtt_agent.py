@@ -46,18 +46,25 @@ class MQTTAgent(BaseAgent):
         return params
 
     def _check_anomalies(self, params, event=None):
-        if params.get("connection_status") == "disconnected":
+        status = params.get("connection_status")
+        if status == "disconnected":
             rule = self.anomaly_rules.get("mqtt_disconnected", {})
             issue = f"{rule.get('id', 'MQTT_KN_001')}: MQTT disconnected"
             if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="MQTT_KN_001",
+                issue=issue,
                 source="MQTT",
                 category="mqtt",
                 severity="high",
                 event=event,
+            )
+        elif status == "connected":
+            self.close_session(
+                "MQTT_KN_001",
+                recovery_event=event,
+                recovery_message="MQTT reconnected to cloud broker",
             )
 
         latency = params.get("message_latency")

@@ -207,9 +207,9 @@ class GPSAgent(BaseAgent):
 
         if sat == 0 and fix_quality == 0:
             issue = "GPS_KN_001: No satellite acquisition (SAT=0, FIX=0)"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="GPS_KN_001",
+                issue=issue,
                 source="GPS",
                 category="gps",
                 severity="high",
@@ -218,9 +218,9 @@ class GPSAgent(BaseAgent):
 
         elif sat >= 4 and fix_quality == 0:
             issue = f"GPS_KN_002: Satellite visible but no fix (SAT={sat}, FIX=0)"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="GPS_KN_002",
+                issue=issue,
                 source="GPS",
                 category="gps",
                 severity="high",
@@ -229,14 +229,33 @@ class GPSAgent(BaseAgent):
 
         elif sat < 4 and sat > 0:
             issue = f"GPS_KN_004: Low satellite count (SAT={sat})"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="GPS_KN_004",
+                issue=issue,
                 source="GPS",
                 category="gps",
                 severity="medium",
                 event=event,
             )
+
+        # Recovery Triggers
+        if sat >= 4 and fix_quality == 1:
+            self.close_session(
+                "GPS_KN_001",
+                recovery_event=event,
+                recovery_message=f"GPS lock acquired: SAT={sat}, FIX={fix_quality}",
+            )
+            self.close_session(
+                "GPS_KN_002",
+                recovery_event=event,
+                recovery_message=f"GPS fix acquired: SAT={sat}, FIX={fix_quality}",
+            )
+            self.close_session(
+                "GPS_KN_004",
+                recovery_event=event,
+                recovery_message=f"Satellite count normalized: SAT={sat}",
+            )
+
 
     def handle(self, event):
         line = event["raw"]

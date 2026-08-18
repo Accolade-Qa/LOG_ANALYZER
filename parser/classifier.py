@@ -44,9 +44,10 @@ PATTERN_DEFINITIONS = [
 ]
 
 
-def classify(line):
+def classify(line, line_number=None):
     for event_type, pattern in PATTERN_DEFINITIONS:
         if pattern.search(line):
-            return {"type": event_type, "raw": line}
+            return {"type": event_type, "raw": line, "line_number": line_number}
     return None
+
 

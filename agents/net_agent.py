@@ -52,37 +52,58 @@ class NetAgent(BaseAgent):
         return parsed
 
     def _check_net_anomalies(self, parsed, event=None):
-        if parsed.get("csq") is not None and parsed["csq"] < 5:
-            issue = f"NET_KN_001: Poor signal quality (CSQ={parsed['csq']})"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+        csq = parsed.get("csq")
+        if csq is not None and csq < 5:
+            issue = f"NET_KN_001: Poor signal quality (CSQ={csq})"
+            self.open_session(
+                session_key="NET_KN_001",
+                issue=issue,
                 source="NET",
                 category="net",
                 severity="medium",
                 event=event,
             )
+        elif csq is not None and csq >= 5:
+            self.close_session(
+                "NET_KN_001",
+                recovery_event=event,
+                recovery_message=f"Signal quality restored: CSQ={csq}",
+            )
 
-        if parsed.get("creg") == 0:
+        creg = parsed.get("creg")
+        if creg == 0:
             issue = "NET_KN_002: GSM registration failed (CREG=0)"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="NET_KN_002",
+                issue=issue,
                 source="NET",
                 category="net",
                 severity="high",
                 event=event,
             )
+        elif creg == 1:
+            self.close_session(
+                "NET_KN_002",
+                recovery_event=event,
+                recovery_message="GSM network registered (CREG=1)",
+            )
 
-        if parsed.get("cgreg") == 0:
+        cgreg = parsed.get("cgreg")
+        if cgreg == 0:
             issue = "NET_KN_003: GPRS registration failed (CGREG=0)"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="NET_KN_003",
+                issue=issue,
                 source="NET",
                 category="net",
                 severity="high",
                 event=event,
+            )
+        elif cgreg == 1:
+            self.close_session(
+                "NET_KN_003",
+                recovery_event=event,
+                recovery_message="GPRS data registered (CGREG=1)",
             )
 
         operator = parsed.get("operator")
@@ -107,6 +128,7 @@ class NetAgent(BaseAgent):
                 severity="medium",
                 event=event,
             )
+
 
     def handle(self, event):
         self.events_received += 1

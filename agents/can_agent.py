@@ -30,13 +30,19 @@ class CANAgent(BaseAgent):
     def _check_can_anomalies(self, parsed, event=None):
         if parsed.get("uds_timeout"):
             issue = "CAN_KN_001: UDS session timeout detected"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="CAN_KN_001",
+                issue=issue,
                 source="CAN",
                 category="can",
                 severity="high",
                 event=event,
+            )
+        else:
+            self.close_session(
+                "CAN_KN_001",
+                recovery_event=event,
+                recovery_message="UDS communication active",
             )
 
         if parsed.get("dtc_code"):
@@ -50,6 +56,7 @@ class CANAgent(BaseAgent):
                 severity="critical",
                 event=event,
             )
+
 
     def handle(self, event):
         self.events_received += 1

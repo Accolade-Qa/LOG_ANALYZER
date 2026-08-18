@@ -2,6 +2,8 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from config_loader import config
+
 # Mapping of known anomaly titles to suggested fixes.
 SUGGESTED_FIXES = {
     "GPS_KN_001": "Investigate satellite reception and antenna placement to restore GPS lock.",
@@ -22,12 +24,9 @@ SUGGESTED_FIXES = {
     "NET_KN_005": "Check network connectivity and active socket usage for telemetry traffic.",
 }
 
-DEFAULT_SEVERITY_ORDER = {
-    "critical": 0,
-    "high": 1,
-    "medium": 2,
-    "low": 3,
-}
+DEFAULT_SEVERITY_ORDER = config.get(
+    "severity_order", {"critical": 0, "high": 1, "medium": 2, "low": 3}
+)
 
 
 def _load_anomalies(raw_path):
@@ -78,8 +77,8 @@ def _best_examples(anomalies):
 
 def generate_report_cards():
     base_dir = Path(__file__).parent.parent
-    raw_path = base_dir / "artifacts" / "raw_anomalies.json"
-    report_path = base_dir / "artifacts" / "report_cards.md"
+    raw_path = base_dir / config["paths"]["raw_anomalies_json"]
+    report_path = base_dir / config["paths"]["report_cards_md"]
 
     if not raw_path.is_file():
         raise FileNotFoundError(f"Raw anomalies file not found: {raw_path}")
@@ -159,8 +158,9 @@ def generate_report_cards():
 
 def generate_final_report():
     base_dir = Path(__file__).parent.parent
-    raw_path = base_dir / "artifacts" / "raw_anomalies.json"
-    report_path = base_dir / "artifacts" / "final_report.md"
+    raw_path = base_dir / config["paths"]["raw_anomalies_json"]
+    report_path = base_dir / config["paths"]["final_report_md"]
+
 
 
     if not raw_path.is_file():
@@ -224,18 +224,30 @@ def generate_final_report():
             or "Review the log entry and apply appropriate remediation."
         )
 
+        meta = anomaly.get("metadata", {})
+        status_str = meta.get("status", "RESOLVED").title()
+        start_ln = meta.get("start_line")
+        end_ln = meta.get("end_line")
+        line_range = f"Lines {start_ln} → {end_ln}" if start_ln and end_ln else "N/A"
+        duration_sec = meta.get("duration_seconds")
+        duration_str = f"{duration_sec:.2f} seconds" if duration_sec is not None else "N/A"
+
         lines.extend(
             [
                 "---",
                 f"### {title}",
                 f"- **Occurrences:** {count}",
                 f"- **Severity:** {severity.title()}",
+                f"- **Status:** {status_str}",
+                f"- **Line Range:** {line_range}",
+                f"- **Outage Duration:** {duration_str}",
                 f"- **Source:** {source}",
                 f"- **Description:** {description}",
                 f"- **Recommended Fix:** {fix}",
                 "",
             ]
         )
+
 
         sample_lines = examples.get(anomaly_id, [])
         if sample_lines:

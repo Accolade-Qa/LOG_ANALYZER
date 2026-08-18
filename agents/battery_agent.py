@@ -104,13 +104,19 @@ class BatteryAgent(BaseAgent):
             issue = f"{rule.get('id', 'BATT_KN_001')}: Low battery voltage ({voltage}V)"
             if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="BATT_KN_001",
+                issue=issue,
                 source="BATTERY",
                 category="battery",
                 severity="high",
                 event=event,
+            )
+        elif voltage is not None and voltage >= 3.3:
+            self.close_session(
+                "BATT_KN_001",
+                recovery_event=event,
+                recovery_message=f"Battery voltage restored: {voltage}V",
             )
 
         if temperature is not None and temperature > 50:
@@ -118,14 +124,21 @@ class BatteryAgent(BaseAgent):
             issue = f"{rule.get('id', 'BATT_KN_002')}: High battery temperature ({temperature}C)"
             if rule and rule.get("root_causes"):
                 issue += f" - {', '.join(rule.get('root_causes', []))}"
-            self.add_anomaly(issue)
-            collect(
-                issue,
+            self.open_session(
+                session_key="BATT_KN_002",
+                issue=issue,
                 source="BATTERY",
                 category="battery",
                 severity="high",
                 event=event,
             )
+        elif temperature is not None and temperature <= 45:
+            self.close_session(
+                "BATT_KN_002",
+                recovery_event=event,
+                recovery_message=f"Battery temperature normalized: {temperature}C",
+            )
+
 
     def handle(self, event):
         self.events_received += 1

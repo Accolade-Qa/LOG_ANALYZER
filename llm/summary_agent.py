@@ -2,7 +2,7 @@ import json
 import os
 import urllib.request
 from pathlib import Path
-
+from config_loader import config
 
 
 def _render_anomaly_text(anomaly):
@@ -12,9 +12,9 @@ def _render_anomaly_text(anomaly):
 
 
 def generate_ai_summary():
-    raw_path = Path(__file__).parent.parent / "artifacts" / "raw_anomalies.json"
-    ai_summary_path = Path(__file__).parent.parent / "artifacts" / "ai_summary.md"
-
+    base_dir = Path(__file__).parent.parent
+    raw_path = base_dir / config["paths"]["raw_anomalies_json"]
+    ai_summary_path = base_dir / config["paths"]["ai_summary_md"]
 
     if not raw_path.exists():
         return
@@ -72,7 +72,12 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
             f.write(fallback_report)
         return
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+    url = config["ai"]["api_url"]
+    if "?" not in url:
+        url += f"?key={api_key}"
+    else:
+        url += f"&key={api_key}"
+
     headers = {"Content-Type": "application/json"}
     prompt = f"Analyze the following telemetry anomaly summary and produce a structured root cause analysis and action plan:\n\n{fallback_report}"
     data = {"contents": [{"parts": [{"text": prompt}]}]}
