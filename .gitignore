@@ -14,3 +14,4 @@ __pycache__/
 # IDE Configuration
 .vscode/
 .idea/
+logs/
