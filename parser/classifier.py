@@ -51,3 +51,34 @@ def classify(line, line_number=None):
     return None
 
 
+    (
+        "CAN",
+        re.compile(
+            rf"(?:{CAN_PREFIX}|{PLA_PREFIX}(?:CAN\b|UDS\s+Session\s+Timeout|DTC\b|FaultVal|IGN_status|##INCR)|\$CAN2|\$CANFD|\bUDS\s+Session\s+Timeout\b|\bDTC\b)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "BATTERY",
+        re.compile(
+            rf"(?:{PLA_PREFIX}ANALOG\b.*\b(?:INT\s+BATT|EXT\s+BATT|TMPR|AN)\b|\$ANALOG|\bINT\s+BATT\b)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "NET",
+        re.compile(
+            rf"(?:{PLA_PREFIX}NET\b|{NET_PREFIX}|\$GSM\b|\bCSQ\b|\bCREG\b|\bCGREG\b)",
+            re.IGNORECASE,
+        ),
+    ),
+]
+
+
+def classify(line, line_number=None):
+    for event_type, pattern in PATTERN_DEFINITIONS:
+        if pattern.search(line):
+            return {"type": event_type, "raw": line, "line_number": line_number}
+    return None
+
+

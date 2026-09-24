@@ -281,3 +281,92 @@ class GPSAgent(BaseAgent):
 
 
 gps_agent = GPSAgent()
+            self.add_anomaly(issue)
+            collect(
+                issue,
+                source="GPS",
+                category="gps",
+                severity="medium",
+                event=event,
+            )
+
+    def _match_anomaly_patterns(self, params, event=None):
+        sat = params.get("satellite_count", 0)
+        fix_quality = params.get("fix_quality")
+
+        if sat == 0 and fix_quality == 0:
+            issue = "GPS_KN_001: No satellite acquisition (SAT=0, FIX=0)"
+            self.open_session(
+                session_key="GPS_KN_001",
+                issue=issue,
+                source="GPS",
+                category="gps",
+                severity="high",
+                event=event,
+            )
+
+        elif sat >= 4 and fix_quality == 0:
+            issue = f"GPS_KN_002: Satellite visible but no fix (SAT={sat}, FIX=0)"
+            self.open_session(
+                session_key="GPS_KN_002",
+                issue=issue,
+                source="GPS",
+                category="gps",
+                severity="high",
+                event=event,
+            )
+
+        elif sat < 4 and sat > 0:
+            issue = f"GPS_KN_004: Low satellite count (SAT={sat})"
+            self.open_session(
+                session_key="GPS_KN_004",
+                issue=issue,
+                source="GPS",
+                category="gps",
+                severity="medium",
+                event=event,
+            )
+
+        # Recovery Triggers
+        if sat >= 4 and fix_quality == 1:
+            self.close_session(
+                "GPS_KN_001",
+                recovery_event=event,
+                recovery_message=f"GPS lock acquired: SAT={sat}, FIX={fix_quality}",
+            )
+            self.close_session(
+                "GPS_KN_002",
+                recovery_event=event,
+                recovery_message=f"GPS fix acquired: SAT={sat}, FIX={fix_quality}",
+            )
+            self.close_session(
+                "GPS_KN_004",
+                recovery_event=event,
+                recovery_message=f"Satellite count normalized: SAT={sat}",
+            )
+
+
+    def handle(self, event):
+        line = event["raw"]
+        params = self._parse_gps_line(line)
+        if not params:
+            return
+
+        self.gps_state["messages_received"] += 1
+        if "fix_quality" in params:
+            self.gps_state["last_fix_quality"] = params["fix_quality"]
+        if "satellite_count" in params:
+            self.gps_state["last_satellite_count"] = params["satellite_count"]
+        if "latitude" in params:
+            self.gps_state["last_lat"] = params["latitude"]
+        if "longitude" in params:
+            self.gps_state["last_long"] = params["longitude"]
+
+        self._check_critical_parameters(params, event)
+        self._check_coordinate_validity(params, event)
+        self._check_satellite_health(params, event)
+        self._match_anomaly_patterns(params, event)
+
+
+
+gps_agent = GPSAgent()

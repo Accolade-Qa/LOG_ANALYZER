@@ -403,6 +403,10 @@ def generate_html_dashboard():
             <button class="btn" data-filter="high">High</button>
             <button class="btn" data-filter="medium">Medium</button>
             <button class="btn" data-filter="low">Low</button>
+            <button class="btn" data-filter="gps">GPS</button>
+            <button class="btn" data-filter="battery">Battery</button>
+            <button class="btn" data-filter="can">CAN</button>
+            <button class="btn" data-filter="net">NET</button>
         </div>
     </div>
 
