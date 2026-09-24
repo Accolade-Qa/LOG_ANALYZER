@@ -4,6 +4,7 @@ from pathlib import Path
 
 from config_loader import config
 from knowledge.knowledge_loader import get_rule_insight, get_suggested_fix
+from llm.summary_agent import generate_ai_summary
 
 
 def _load_anomalies(raw_path):
@@ -22,8 +23,8 @@ def _load_anomalies(raw_path):
 
 def generate_html_dashboard():
     """
-    Generate a clean, professional HTML telemetry report.
-    Pulls rule insights dynamically from parameters.yaml.
+    Generate a comprehensive HTML telemetry diagnostic report for QA Testers.
+    Combines stateful transition metrics, parameters.yaml knowledge, and LLM root-cause synthesis.
     """
     base_dir = Path(__file__).parent.parent
     raw_path = base_dir / config["paths"]["raw_anomalies_json"]
@@ -31,6 +32,18 @@ def generate_html_dashboard():
 
     anomalies = _load_anomalies(raw_path)
     total = len(anomalies)
+
+    # 1. Generate / Retrieve AI Root Cause Analysis & QA Guidance
+    ai_guidance_md = generate_ai_summary() or ""
+
+    # Convert simple markdown headings/bullets to HTML for embedding
+    ai_guidance_html = (
+        ai_guidance_md.replace("### ", "<h3>")
+        .replace("#### ", "<h4>")
+        .replace("- **", "<li><strong>")
+        .replace("**: ", "</strong>: ")
+        .replace("\n\n", "<br>")
+    )
 
     severity_counter = Counter()
     top_types = Counter()
@@ -53,6 +66,8 @@ def generate_html_dashboard():
         # Dynamic Knowledge Retrieval from parameters.yaml
         insight = get_rule_insight(anomaly_id or title)
         fix = insight.get("fix") or get_suggested_fix(anomaly_id or title)
+        why = insight.get("why", "Threshold or condition breached.")
+        lookup = insight.get("lookup", "Inspect GPS hardware coaxial line and UART parser logic.")
 
         meta = anomaly.get("metadata", {})
         status = str(meta.get("status", "RESOLVED")).upper()
@@ -75,8 +90,8 @@ def generate_html_dashboard():
             "start_line": start_ln,
             "end_line": end_ln,
             "duration": duration_str,
-            "why": insight.get("why", "Threshold or state condition breached."),
-            "lookup": insight.get("lookup", "Inspect GPS hardware lines and NMEA parser logic."),
+            "why": why,
+            "lookup": lookup,
             "fix": fix,
             "start_raw": start_raw.strip(),
             "recovery_raw": recovery_raw.strip(),
@@ -92,7 +107,7 @@ def generate_html_dashboard():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS Telemetry Diagnostic Report</title>
+    <title>GPS Telemetry QA Diagnostic & Root Cause Report</title>
     <style>
         :root {{
             --bg: #0f172a;
@@ -105,6 +120,8 @@ def generate_html_dashboard():
             --medium: #f59e0b;
             --low: #10b981;
             --code-bg: #020617;
+            --guide-bg: rgba(56, 189, 248, 0.05);
+            --guide-border: rgba(56, 189, 248, 0.2);
         }}
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{
@@ -163,6 +180,20 @@ def generate_html_dashboard():
         .val.high {{ color: var(--high); }}
         .val.medium {{ color: var(--medium); }}
         .val.low {{ color: var(--low); }}
+
+        /* AI Guidance Box */
+        .ai-guidance-card {{
+            background: var(--guide-bg);
+            border: 1px solid var(--guide-border);
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+            font-size: 14px;
+        }}
+        .ai-guidance-card h3 {{ font-size: 16px; color: var(--accent); margin-bottom: 12px; font-weight: 700; }}
+        .ai-guidance-card h4 {{ font-size: 14px; color: var(--text-primary); margin: 12px 0 6px 0; font-weight: 600; }}
+        .ai-guidance-card ul {{ padding-left: 20px; margin-bottom: 10px; }}
+        .ai-guidance-card li {{ margin-bottom: 6px; }}
 
         /* Filter Controls */
         .controls {{
@@ -254,8 +285,13 @@ def generate_html_dashboard():
         .analysis-section {{
             margin-bottom: 16px;
             font-size: 14px;
+            background: rgba(2, 6, 23, 0.4);
+            padding: 14px 16px;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
         }}
         .analysis-item {{ margin-bottom: 8px; }}
+        .analysis-item:last-child {{ margin-bottom: 0; }}
         .analysis-item strong {{ color: var(--accent); font-weight: 600; }}
 
         /* Code Trace Box */
@@ -278,8 +314,8 @@ def generate_html_dashboard():
 
 <div class="container">
     <div class="header">
-        <h1>GPS Telemetry Diagnostic Report</h1>
-        <p>Automated Analysis & Stateful Telemetry Outage Tracking</p>
+        <h1>GPS Telemetry QA Diagnostic Report</h1>
+        <p>Automated Root Cause Analysis & Stateful Telemetry Outage Tracking</p>
     </div>
 
     <div class="kpi-grid">
@@ -305,8 +341,13 @@ def generate_html_dashboard():
         </div>
     </div>
 
+    <!-- AI Tester Guidance Card -->
+    <div class="ai-guidance-card">
+        {ai_guidance_html}
+    </div>
+
     <div class="controls">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search by rule ID, description, or raw log text...">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search by rule ID, root cause, or raw log text...">
         <div class="btn-group" id="filterBtns">
             <button class="filter-btn active" data-filter="all">All</button>
             <button class="filter-btn" data-filter="high">High</button>
@@ -334,6 +375,7 @@ def generate_html_dashboard():
             const matchQuery = !q || 
                                c.title.toLowerCase().includes(q) || 
                                c.why.toLowerCase().includes(q) || 
+                               c.lookup.toLowerCase().includes(q) ||
                                c.fix.toLowerCase().includes(q) ||
                                c.start_raw.toLowerCase().includes(q) ||
                                c.recovery_raw.toLowerCase().includes(q);
@@ -351,10 +393,10 @@ def generate_html_dashboard():
 
             let logTraceHtml = '';
             if (item.start_raw) {{
-                logTraceHtml += `<div class="code-label tag-start">FAULT TRIGGER (Line ${{item.start_line}}):</div><div>${{item.start_raw}}</div>`;
+                logTraceHtml += `<div class="code-label tag-start">🔴 FAULT TRIGGER (Line ${{item.start_line}}):</div><div>${{item.start_raw}}</div>`;
             }}
             if (item.recovery_raw && item.recovery_raw !== item.start_raw) {{
-                logTraceHtml += `<div class="code-label tag-end" style="margin-top:10px;">STATE RECOVERED (Line ${{item.end_line}}):</div><div>${{item.recovery_raw}}</div>`;
+                logTraceHtml += `<div class="code-label tag-end" style="margin-top:10px;">🟢 STATE RECOVERED (Line ${{item.end_line}}):</div><div>${{item.recovery_raw}}</div>`;
             }}
 
             card.innerHTML = `
@@ -369,9 +411,9 @@ def generate_html_dashboard():
                     <div class="meta-item"><span class="key">Outage Duration</span><span class="val">${{item.duration}}</span></div>
                 </div>
                 <div class="analysis-section">
-                    <div class="analysis-item"><strong>Root Cause:</strong> ${{item.why}}</div>
-                    <div class="analysis-item"><strong>Tester Inspection:</strong> ${{item.lookup}}</div>
-                    <div class="analysis-item"><strong>Recommended Fix:</strong> ${{item.fix}}</div>
+                    <div class="analysis-item"><strong>❓ Why It Happened (Root Cause):</strong> ${{item.why}}</div>
+                    <div class="analysis-item"><strong>🔍 What Testers Should Look Up:</strong> ${{item.lookup}}</div>
+                    <div class="analysis-item"><strong>🛠️ Step-by-Step QA Action Items:</strong> ${{item.fix}}</div>
                 </div>
                 ${{logTraceHtml ? `<div class="code-box">${{logTraceHtml}}</div>` : ''}}
             `;
