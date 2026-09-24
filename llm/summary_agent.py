@@ -51,10 +51,10 @@ def generate_ai_summary():
             [f"- **{src}**: {cnt} event(s)" for src, cnt in by_source.most_common()]
         )
 
-        fallback_report = f"""# Telemetry AI Summary & Root Cause Analysis
+        fallback_report = f"""# GPS Telemetry AI Summary & Root Cause Analysis
 
 ## Executive Synthesis
-During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{len(unique)}** distinct pattern(s) were identified.
+During GPS telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{len(unique)}** distinct pattern(s) were identified.
 
 ### Subsystem Impact Breakdown
 {source_summary}
@@ -63,17 +63,17 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
 {anomalies_summary}
 
 ## Predictive Root Cause Analysis
-1. **Satellite Acquisition & Antenna Losses (GPS)**:
-   - Frequent `GPS_KN_001` (SAT=0, FIX=0) or low satellite count indicates signal occlusion, poor antenna placement, or cold-boot satellite search timeouts during boot sequence.
-2. **Network & Cellular Registration Delays (NET/GSM)**:
-   - `NET_KN_001` (Poor CSQ) and `NET_KN_002`/`003` (Registration Failures) suggest weak cellular tower coverage or SIM module attachment latency.
-3. **Power Subsystem Integrity (BATTERY)**:
-   - Voltage drops or missing critical analog channels point to power line noise or low backup battery state during high-draw operations (like cellular TX bursts).
+1. **Satellite Acquisition & RF Antenna Losses**:
+   - Frequent `GPS_KN_001` (SAT=0, FIX=0) or low satellite count indicates signal occlusion, poor antenna placement, indoor testing conditions, or cold-boot satellite search timeouts.
+2. **Navigation Fix Calculation Failures**:
+   - `GPS_KN_002` (SAT>=4, FIX=0) indicates visible satellites where navigation solution calculation failed due to signal degradation or initialization delays.
+3. **Coordinates Integrity & Parser Formatting**:
+   - `GPS_KN_003` (Invalid zero coordinates) points to parser offset mismatches or unpopulated memory fields during firmware lock transition.
 
 ## Recommended Remediation Steps
-- **Hardware/Antenna**: Re-orient GPS antenna with clear sky view and verify RF line attenuation.
-- **Cellular Protocol Stack**: Increase network registration retry timers and check APN/SIM credentials.
-- **Power Optimization**: Verify internal battery charging voltage and decouple analog sensor supply.
+- **Hardware/Antenna**: Re-orient GPS antenna with clear sky view, check RF coaxial cable connection, and measure LNA supply voltage.
+- **Firmware Lock Logic**: Allow appropriate stabilization window during cold-boot sequence before flagging fix timeouts.
+- **Parser Verification**: Validate UART parser to ensure lat/long coordinate floats are correctly extracted from NMEA strings.
 """
 
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -98,7 +98,9 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
             if response and response.text:
                 summary_text = response.text
         except Exception as e:
-            print(f"google-genai SDK call failed ({e}). Falling back to REST HTTPS client...")
+            print(
+                f"google-genai SDK call failed ({e}). Falling back to REST HTTPS client..."
+            )
 
     # Method 2: Fallback REST Client with SSL context & retry loop
     if summary_text is None:
@@ -125,15 +127,21 @@ During telemetry log analysis, **{len(anomalies)}** anomaly event(s) across **{l
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, context=ssl_context, timeout=60) as response:
+                with urllib.request.urlopen(
+                    req, context=ssl_context, timeout=60
+                ) as response:
                     res_data = json.loads(response.read().decode("utf-8"))
-                    summary_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    summary_text = res_data["candidates"][0]["content"]["parts"][0][
+                        "text"
+                    ]
                     break
             except Exception as e:
                 if attempt < max_retries:
                     time.sleep(1.0 * attempt)
                 else:
-                    print(f"Failed to query Gemini API after {max_retries} attempt(s) ({e}). Writing local structured synthesis.")
+                    print(
+                        f"Failed to query Gemini API after {max_retries} attempt(s) ({e}). Writing local structured synthesis."
+                    )
                     summary_text = fallback_report
 
     ai_summary_path.parent.mkdir(parents=True, exist_ok=True)
