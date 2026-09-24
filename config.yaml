@@ -6,7 +6,7 @@
 paths:
   log_dir: "logs"
   artifact_dir: "artifacts"
-  default_log_file: "logs/REL18_TO_REL24.log"
+  default_log_file: "logs/FOTA_REL_18_861564061380138_To_REL_05.log"
   raw_anomalies_json: "artifacts/raw_anomalies.json"
   report_cards_md: "artifacts/report_cards.md"
   final_report_md: "artifacts/final_report.md"

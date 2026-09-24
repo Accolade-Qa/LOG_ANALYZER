@@ -1,4 +1,4 @@
-import os
+import argparse
 import sys
 from pathlib import Path
 
@@ -10,30 +10,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import argparse
-from agents.battery_agent import battery_agent
-from agents.can_agent import can_agent
 from agents.gps_agent import gps_agent
-from agents.mqtt_agent import mqtt_agent
-from agents.net_agent import net_agent
-from llm.summary_agent import generate_ai_summary
+from config_loader import config
 from parser.gps_log_reader import process_log
 from parser.live_stream_reader import stream_growing_file, stream_uart_port
 from reports.anomaly_collector import clear_anomalies, save_anomalies
-from reports.report_generator import (
-    generate_final_report,
-    generate_html_dashboard,
-    generate_report_cards,
-)
+from reports.report_generator import generate_html_dashboard
 
-from config_loader import config
-
-ALL_AGENTS = [gps_agent, battery_agent, can_agent, net_agent, mqtt_agent]
+ALL_AGENTS = [gps_agent]
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Automated Telemetry Log Analyzer with Stateful Session & Live Ingestion"
+        description="Automated GPS Telemetry Log Analyzer"
     )
     parser.add_argument(
         "--mode",
@@ -96,7 +85,6 @@ def main():
             else:
                 raise FileNotFoundError(f"Specified log file not found: {target_path}")
         else:
-            # Default from config or REL18_TO_REL24.log if available
             rel_file = BASE_DIR / config["paths"]["default_log_file"]
             if rel_file.exists():
                 target_files = [rel_file]
@@ -115,27 +103,18 @@ def main():
     for agent in ALL_AGENTS:
         agent.finalize_open_sessions()
 
-    # Persist anomalies to raw_anomalies.json
+    # Persist anomalies JSON
     save_anomalies()
 
-    # Generate all reports
-    report_cards_path = generate_report_cards()
-    final_report_path = generate_final_report()
+    # Generate HTML report
     dashboard_html_path = generate_html_dashboard()
 
-    # Generate AI summary
-    generate_ai_summary()
-    ai_summary_path = BASE_DIR / config["paths"]["ai_summary_md"]
-
-    print("\nTelemetry analysis completed successfully!")
+    print("\nTelemetry Analysis Completed Successfully!")
     print("Generated Artifacts:")
-    print(f" - Raw Anomalies JSON: {BASE_DIR / config['paths']['raw_anomalies_json']}")
-    print(f" - Report Cards:       {report_cards_path}")
-    print(f" - Final Report:        {final_report_path}")
-    print(f" - AI Summary:         {ai_summary_path}")
-    print(f" - HTML Dashboard:     {dashboard_html_path}")
-
+    print(f" - Raw Anomalies Data: {BASE_DIR / config['paths']['raw_anomalies_json']}")
+    print(f" - HTML Diagnostic Report: {dashboard_html_path}")
 
 
 if __name__ == "__main__":
     main()
+
