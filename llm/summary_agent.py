@@ -1,6 +1,8 @@
+import io
 import json
 import os
 import ssl
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -95,54 +97,54 @@ During GPS log analysis, **{len(anomalies)}** anomaly event(s) across **{len(uni
     )
     summary_text = None
 
-    # Method 1: Official google-genai Python SDK with suppressed AFC warnings
-    if genai is not None:
+    # Method 1: REST Client (Direct HTTPS without SDK AFC warnings or gRPC overhead)
+    url = config["ai"]["api_url"]
+    if "?" not in url:
+        url += f"?key={api_key}"
+    else:
+        url += f"&key={api_key}"
+
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "LOG_ANALYZER/1.0",
+        "Connection": "close",
+    }
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    ssl_context = ssl.create_default_context()
+
+    for attempt in range(1, 3):
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(data).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
         try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+            with urllib.request.urlopen(req, context=ssl_context, timeout=15) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                summary_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                break
+        except Exception:
+            if attempt < 2:
+                time.sleep(1.0)
+
+    # Method 2: Fallback to google-genai SDK if REST not used
+    if summary_text is None and genai is not None:
+        try:
+            old_stderr = sys.stderr
+            sys.stderr = io.StringIO()
+            try:
                 client = genai.Client(api_key=api_key)
-                gen_config = types.GenerateContentConfig(tools=[]) if types else None
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
-                    config=gen_config,
                 )
                 if response and response.text:
                     summary_text = response.text
+            finally:
+                sys.stderr = old_stderr
         except Exception:
-            pass  # Fail gracefully to REST client
-
-    # Method 2: REST Client fallback
-    if summary_text is None:
-        url = config["ai"]["api_url"]
-        if "?" not in url:
-            url += f"?key={api_key}"
-        else:
-            url += f"&key={api_key}"
-
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "LOG_ANALYZER/1.0",
-            "Connection": "close",
-        }
-        data = {"contents": [{"parts": [{"text": prompt}]}]}
-        ssl_context = ssl.create_default_context()
-
-        for attempt in range(1, 3):
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            try:
-                with urllib.request.urlopen(req, context=ssl_context, timeout=15) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-                    summary_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                    break
-            except Exception:
-                if attempt < 2:
-                    time.sleep(1.0)
+            pass
 
     if not summary_text:
         summary_text = fallback_report
