@@ -1,0 +1,100 @@
+# Automotive MCU System, RTOS & Power Management Knowledge Base
+# Standards: Embedded RTOS Diagnostics, Watchdog Management, Automotive Sleep States
+
+system:
+  parameters:
+    heap_used:
+      name: "RTOS Heap Memory Used"
+      symbol: "HEAP USED"
+      type: "integer"
+      units: "bytes"
+      description: "Allocated dynamic heap memory"
+      critical: true
+
+    heap_total:
+      name: "RTOS Total Available Heap"
+      symbol: "HEAP TOTAL"
+      type: "integer"
+      units: "bytes"
+      description: "Total configurable system RAM heap"
+      critical: true
+
+    cpu_temp:
+      name: "Microcontroller Temperature"
+      symbol: "CPU"
+      type: "float"
+      valid_range: [-40.0, 85.0]
+      units: "deg C"
+      description: "Internal MCU die junction temperature"
+      critical: false
+      rule_id: "SYS_KN_002"
+
+    uptime_sec:
+      name: "System Uptime"
+      symbol: "UPTIME SEC"
+      type: "integer"
+      units: "seconds"
+      description: "Continuous seconds since last hardware power-on or reset"
+      critical: true
+
+    ignition:
+      name: "Vehicle Ignition Signal"
+      symbol: "IGN"
+      type: "integer"
+      valid_range: [0, 1]
+      description: "0=Engine OFF / Accessory OFF, 1=Ignition ON"
+      critical: true
+
+    sleep_remaining:
+      name: "Low-Power Sleep Counter"
+      symbol: "SLEEP"
+      type: "integer"
+      units: "seconds"
+      description: "Sleep timer countdown during TCU parked state"
+      critical: false
+
+  anomaly_rules:
+    rtos_heap_exhaustion:
+      id: "SYS_KN_001"
+      condition: "HEAP_RATIO > 0.90"
+      severity: "CRITICAL"
+      why_it_happened: "RTOS dynamic memory heap allocation exceeded 90%, risking out-of-memory kernel panic or malloc crash."
+      what_to_look_up: "Inspect FreeRTOS / ThreadX memory leaks, unreleased network packet buffers, and circular queue allocations."
+      suggested_fix: "Profile heap allocations in firmware and patch unreleased pointer buffers in telemetry serializer."
+      root_causes:
+        - "memory leak in packet framing buffer"
+        - "fragmented RTOS heap pool"
+        - "unclosed socket handle allocations"
+
+    cpu_overheating:
+      id: "SYS_KN_002"
+      condition: "CPU_TEMP > 85.0"
+      severity: "HIGH"
+      why_it_happened: "MCU die temperature exceeded automotive operating temperature threshold (85 deg C)."
+      what_to_look_up: "Verify enclosure thermal dissipation, PCB thermal vias, and clock frequency duty cycles."
+      suggested_fix: "Reduce MCU clock or improve enclosure airflow."
+      root_causes:
+        - "high ambient temperature in vehicle dash"
+        - "excessive CPU clock speed without dynamic frequency scaling"
+
+    unexpected_mcu_reset:
+      id: "SYS_KN_003"
+      condition: "UPTIME_RESET == True"
+      severity: "CRITICAL"
+      why_it_happened: "MCU uptime unexpectedly reset to 0 while vehicle ignition was active; indicates watchdog crash or brownout reset."
+      what_to_look_up: "Inspect reset cause register (RSTCSR / RCC_CSR: IWDG, WWDG, or Brownout Reset bit)."
+      suggested_fix: "Check watchdog feed task priorities and inspect power decoupling capacitors on 3.3V rail."
+      root_causes:
+        - "hardware watchdog timeout"
+        - "hard fault exception (null pointer dereference)"
+        - "power rail brownout transient"
+
+    vehicle_sleep_mode_entered:
+      id: "SYS_KN_004"
+      condition: "IGN == 0 AND SLEEP > 0"
+      severity: "LOW"
+      why_it_happened: "Vehicle ignition shut off; TCU has entered expected low-power standby sleep cycle to conserve vehicle battery."
+      what_to_look_up: "Normal expected operation during parked vehicle state."
+      suggested_fix: "No action required; this is an expected vehicle power state transition."
+      root_causes:
+        - "normal vehicle parked state"

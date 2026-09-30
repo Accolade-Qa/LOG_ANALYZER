@@ -1,13 +1,26 @@
 from agents.gps_agent import gps_agent
+from agents.battery_agent import battery_agent
+from agents.can_agent import can_agent
+from agents.net_agent import net_agent
+from agents.mqtt_agent import mqtt_agent
+from agents.ais_agent import ais_agent
+from agents.system_agent import system_agent
 
 registry = {
     "GPS": gps_agent,
+    "BATTERY": battery_agent,
+    "CAN": can_agent,
+    "NET": net_agent,
+    "MQTT": mqtt_agent,
+    "AIS": ais_agent,
+    "SYSTEM": system_agent,
 }
 
 
 def dispatch(event):
-    """Dispatch GPS telemetry events to the GPS agent."""
-    agent = registry.get(event["type"])
+    """Dispatch telemetry events to their specialized subsystem agent."""
+    if not event:
+        return
+    agent = registry.get(event.get("type"))
     if agent:
         agent.handle(event)
-

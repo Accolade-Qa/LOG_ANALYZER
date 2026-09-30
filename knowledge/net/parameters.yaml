@@ -1,0 +1,116 @@
+# Automotive Cellular Network & Cloud MQTT Telemetry Knowledge Base
+# Standards: 3GPP TS 27.007 (AT Commands), MQTT v3.1.1 / v5.0
+
+net:
+  parameters:
+    csq:
+      name: "Cellular Signal Quality"
+      symbol: "CSQ"
+      type: "integer"
+      valid_range: [0, 31]
+      units: "index"
+      description: "0-9: Poor, 10-14: Fair, 15-19: Good, 20-31: Excellent, 99: Unknown"
+      critical: true
+      rule_id: "NET_KN_001"
+
+    creg:
+      name: "Circuit-Switched Network Registration"
+      symbol: "CREG"
+      type: "integer"
+      valid_range: [0, 5]
+      description: "0=Not Reg, 1=Reg Home, 2=Searching, 3=Denied, 4=Unknown, 5=Roaming"
+      critical: true
+      rule_id: "NET_KN_002"
+
+    cgreg:
+      name: "GPRS / LTE Packet Data Registration"
+      symbol: "CGREG"
+      type: "integer"
+      valid_range: [0, 5]
+      description: "0=Not Reg, 1=Reg Home, 2=Searching, 3=Denied, 4=Unknown, 5=Roaming"
+      critical: true
+      rule_id: "NET_KN_003"
+
+    tcp_skt:
+      name: "Active TCP Sockets"
+      symbol: "TCP SKT"
+      type: "integer"
+      valid_range: [0, 10]
+      description: "Number of active socket descriptors connected"
+      critical: false
+
+    mqtt_status:
+      name: "MQTT Broker Connection Status"
+      symbol: "MQTT"
+      type: "integer"
+      valid_range: [0, 1]
+      description: "0=Disconnected, 1=Connected and authenticated to telemetry broker"
+      critical: true
+      rule_id: "NET_KN_004"
+
+    operator:
+      name: "Mobile Network Operator"
+      symbol: "OPR NM"
+      type: "string"
+      description: "Registered cellular carrier name (e.g. Jio, Airtel, Vodafone)"
+      critical: false
+
+  anomaly_rules:
+    cellular_poor_signal:
+      id: "NET_KN_001"
+      condition: "CSQ < 10 AND CSQ >= 0"
+      severity: "MEDIUM"
+      why_it_happened: "Cellular RF signal dropped below acceptable margin (CSQ < 10), causing packet retransmission or dropouts."
+      what_to_look_up: "Inspect LTE/GSM external antenna placement, SMA connection, coaxial cable pinch, and local base-station coverage."
+      suggested_fix: "Check cellular antenna mounting and verify RF reception in test drive area."
+      root_causes:
+        - "vehicle inside basement, tunnel, or remote coverage gap"
+        - "disconnected or pinched cellular antenna cable"
+        - "co-channel RF interference"
+
+    cellular_registration_lost:
+      id: "NET_KN_002"
+      condition: "CREG == 0 OR CREG == 2 OR CREG == 3"
+      severity: "HIGH"
+      why_it_happened: "TCU lost registration with the mobile base station network (CREG not 1 or 5)."
+      what_to_look_up: "Verify SIM card physical seat, e-SIM profile activation, carrier roaming agreement, and antenna VSWR."
+      suggested_fix: "Inspect SIM card contacts, verify SIM balance/profile, and reboot modem module."
+      root_causes:
+        - "SIM card contact oxidation or disconnection"
+        - "network registration denied by carrier"
+        - "radio searching in out-of-coverage zone"
+
+    packet_data_unattached:
+      id: "NET_KN_003"
+      condition: "CGREG == 0 OR CGREG == 2 OR CGREG == 3"
+      severity: "HIGH"
+      why_it_happened: "Modem failed to attach to GPRS/LTE packet data service (CGREG not 1 or 5); no internet connectivity."
+      what_to_look_up: "Check carrier APN configuration, PDP context activation status, and data quota."
+      suggested_fix: "Verify APN string in TCU firmware configuration and confirm active data plan."
+      root_causes:
+        - "incorrect APN credentials"
+        - "carrier PDP context rejection"
+        - "LTE band mismatch"
+
+    mqtt_broker_disconnected:
+      id: "NET_KN_004"
+      condition: "MQTT == 0"
+      severity: "HIGH"
+      why_it_happened: "TCU telemetry client disconnected from the cloud MQTT broker; live tracking updates interrupted."
+      what_to_look_up: "Check MQTT broker host resolution (DNS), TCP keepalive timeout, TLS certificate expiry, and broker auth credentials."
+      suggested_fix: "Inspect MQTT client logs, verify broker TLS certs, and test TCP connectivity to broker port (8883/1883)."
+      root_causes:
+        - "broker keepalive ping timeout"
+        - "TLS handshake failure or certificate expiration"
+        - "TCP socket teardown during cellular handover"
+
+    missing_operator_info:
+      id: "NET_KN_005"
+      condition: "OPERATOR == ''"
+      severity: "LOW"
+      why_it_happened: "Modem did not receive Operator Name Identification from mobile network cell."
+      what_to_look_up: "Check AT+COPS? modem response and SIM subscriber IMSI lookup."
+      suggested_fix: "Verify SIM card profile provisioning."
+      root_causes:
+        - "transient network handshake delay"
+        - "unregistered SIM card"

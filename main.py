@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -10,19 +11,54 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from agents.gps_agent import gps_agent
+from agents import ALL_AGENTS
 from config_loader import config
+from llm.agentic_engine import AutomotiveDiagnosticAgent
 from parser.gps_log_reader import process_log
 from parser.live_stream_reader import stream_growing_file, stream_uart_port
 from reports.anomaly_collector import clear_anomalies, save_anomalies
 from reports.report_generator import generate_html_dashboard
 
-ALL_AGENTS = [gps_agent]
+
+def run_interactive_copilot(log_path=None):
+    """Launch interactive Automotive Diagnostic Copilot CLI session."""
+    raw_path = BASE_DIR / config["paths"]["raw_anomalies_json"]
+    anomalies = []
+    if raw_path.exists():
+        try:
+            with open(raw_path, "r", encoding="utf-8") as f:
+                anomalies = json.load(f)
+        except Exception:
+            anomalies = []
+
+    agent = AutomotiveDiagnosticAgent(log_path=log_path)
+    print("\n" + "=" * 70)
+    print("🤖 Automotive Telemetry AI Copilot (Interactive Mode)")
+    print("Ask questions about anomalies, CAN timeouts, battery voltages, or line events.")
+    print("Type 'exit' or 'quit' to end session.")
+    print("=" * 70 + "\n")
+
+    while True:
+        try:
+            user_input = input("Copilot> ").strip()
+            if not user_input:
+                continue
+            if user_input.lower() in ["exit", "quit", "q"]:
+                print("Ending Copilot session. Goodbye!")
+                break
+            
+            print("\nAnalyzing telemetry context and verifying log evidence...")
+            answer = agent.answer_copilot_query(user_input, anomalies)
+            print(f"\n{answer}\n")
+            print("-" * 70)
+        except (KeyboardInterrupt, EOFError):
+            print("\nExiting Copilot.")
+            break
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Automated GPS Telemetry Log Analyzer"
+        description="Agentic AI Automotive Telemetry & Firmware Log Analyzer"
     )
     parser.add_argument(
         "--mode",
@@ -49,10 +85,17 @@ def main():
         default=config["uart"]["default_baudrate"],
         help=f"UART Serial Baud Rate (default: {config['uart']['default_baudrate']})",
     )
+    parser.add_argument(
+        "--copilot",
+        action="store_true",
+        help="Launch interactive AI Diagnostic Copilot chat session after analysis",
+    )
     args = parser.parse_args()
 
     # Reset anomaly collector state for clean run
     clear_anomalies()
+
+    analyzed_log_file = None
 
     if args.mode == "uart":
         print(f"Starting Live Hardware UART Analysis on port {args.port} @ {args.baud} baud...")
@@ -65,6 +108,7 @@ def main():
         if not target_path.is_absolute():
             target_path = BASE_DIR / args.log_file
         print(f"Starting Live Tailing on growing file: {target_path}")
+        analyzed_log_file = str(target_path)
         stream_growing_file(
             str(target_path),
             poll_interval=config["live_tail"]["poll_interval"],
@@ -94,27 +138,32 @@ def main():
         if not target_files:
             raise FileNotFoundError(f"No log files found in {LOG_DIR}")
 
-        print(f"Starting telemetry analysis on {len(target_files)} log file(s)...")
+        print(f"Starting automotive telemetry analysis on {len(target_files)} log file(s)...")
         for log_path in target_files:
+            analyzed_log_file = str(log_path)
             print(f"Processing log file: {log_path.name} ({log_path.stat().st_size / (1024*1024):.2f} MB)...")
             process_log(str(log_path))
 
-    # Finalize any unrecovered open sessions at end of run
+    # Finalize any unrecovered open sessions at end of run across all active domain agents
     for agent in ALL_AGENTS:
         agent.finalize_open_sessions()
 
-    # Persist anomalies JSON
+    # Persist anomalies JSON with cross-domain temporal correlations
     save_anomalies()
 
-    # Generate HTML report
-    dashboard_html_path = generate_html_dashboard()
+    # Generate multi-domain HTML dashboard with Agentic AI synthesis
+    dashboard_html_path = generate_html_dashboard(log_path=analyzed_log_file)
 
-    print("\nTelemetry Analysis Completed Successfully!")
+    print("\nAutomotive Telemetry Analysis Completed Successfully!")
     print("Generated Artifacts:")
-    print(f" - Raw Anomalies Data: {BASE_DIR / config['paths']['raw_anomalies_json']}")
-    print(f" - HTML Diagnostic Report: {dashboard_html_path}")
+    print(f" - Raw Anomalies Data (Correlated): {BASE_DIR / config['paths']['raw_anomalies_json']}")
+    print(f" - AI Diagnostic Synthesis: {BASE_DIR / config['paths']['ai_summary_md']}")
+    print(f" - HTML Diagnostic Dashboard: {dashboard_html_path}")
+
+    # Launch interactive copilot if requested
+    if args.copilot:
+        run_interactive_copilot(log_path=analyzed_log_file)
 
 
 if __name__ == "__main__":
     main()
-

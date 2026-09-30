@@ -1,0 +1,101 @@
+# Automotive Battery & Power Subsystem Knowledge Base
+# Standard: Automotive Telematics Control Unit (TCU) 12V/24V + Internal Backup Li-ion
+
+battery:
+  parameters:
+    internal_voltage:
+      name: "Internal Backup Battery Voltage"
+      symbol: "INT BATT"
+      type: "float"
+      valid_range: [3.4, 4.25]
+      units: "V"
+      description: "Internal rechargeable Li-ion backup cell voltage"
+      critical: true
+      rule_id: "BATT_KN_002"
+
+    internal_soc:
+      name: "Internal Battery State of Charge"
+      symbol: "INT BATT PERCENT"
+      type: "float"
+      valid_range: [15.0, 100.0]
+      units: "%"
+      description: "Remaining internal backup battery percentage"
+      critical: true
+
+    external_voltage:
+      name: "Vehicle Main Battery Voltage"
+      symbol: "EXT BATT"
+      type: "float"
+      valid_range: [9.0, 32.0]
+      units: "V"
+      description: "Vehicle primary battery line (12V nominal or 24V commercial vehicle)"
+      critical: true
+      rule_id: "BATT_KN_001"
+
+    temperature:
+      name: "Battery Cell Temperature"
+      symbol: "TMPR"
+      type: "float"
+      valid_range: [-20.0, 55.0]
+      units: "deg C"
+      description: "Battery pack thermistor temperature"
+      critical: false
+      rule_id: "BATT_KN_003"
+
+    analog_input_1:
+      name: "Analog Sensor Input 1"
+      symbol: "AN 0"
+      type: "float"
+      valid_range: [0.0, 32.0]
+      units: "V"
+      description: "Auxiliary analog input voltage line 1"
+      critical: false
+
+  anomaly_rules:
+    external_battery_loss:
+      id: "BATT_KN_001"
+      condition: "EXT_BATT < 9.0"
+      severity: "HIGH"
+      why_it_happened: "Main vehicle power rail dropped below 9.0V or was physically disconnected from the vehicle harness."
+      what_to_look_up: "Inspect vehicle alternator, ignition harness connection, main fuse, and TCU primary power line."
+      suggested_fix: "Check vehicle battery terminal connection and verify alternator charging voltage."
+      root_causes:
+        - "vehicle ignition turned off"
+        - "main battery disconnected"
+        - "blown power harness fuse"
+        - "cranking voltage collapse"
+
+    internal_battery_critical:
+      id: "BATT_KN_002"
+      condition: "INT_BATT < 3.4 OR SOC < 15.0"
+      severity: "HIGH"
+      why_it_happened: "Internal backup battery depleted below operational threshold; risk of sudden TCU shutdown."
+      what_to_look_up: "Inspect internal battery charging IC (BQ24xxx), verify USB/main charging line, and test battery internal resistance."
+      suggested_fix: "Charge backup battery via vehicle harness or replace degraded internal Li-ion pouch cell."
+      root_causes:
+        - "extended unpowered storage"
+        - "charger IC fault"
+        - "battery degradation / high cycle count"
+
+    over_temperature_warning:
+      id: "BATT_KN_003"
+      condition: "TMPR > 55.0"
+      severity: "HIGH"
+      why_it_happened: "Battery thermistor detected excessive temperature (>55 deg C), risking thermal degradation."
+      what_to_look_up: "Inspect ECU mounting location near vehicle engine block or exhaust, and test enclosure heatsinking."
+      suggested_fix: "Verify thermal isolation and test charging cutoff under high ambient heat."
+      root_causes:
+        - "high ambient engine bay temperature"
+        - "internal cell thermal runaway"
+        - "faulty NTC thermistor"
+
+    cranking_voltage_dip:
+      id: "BATT_KN_004"
+      condition: "EXT_BATT < 7.5 AND EXT_BATT > 0.0"
+      severity: "MEDIUM"
+      why_it_happened: "Severe voltage dip detected on vehicle battery rail, characteristic of engine starter cranking or weak battery."
+      what_to_look_up: "Verify TCU supercapacitor / buck-boost regulator hold-up time during cold cranking."
+      suggested_fix: "Ensure TCU power circuit meets ISO 16750-2 cold cranking pulse requirements."
+      root_causes:
+        - "engine starter motor draw"
+        - "sulfated or weak vehicle lead-acid battery"

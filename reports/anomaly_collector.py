@@ -4,14 +4,13 @@ from datetime import datetime
 from pathlib import Path
 
 from config_loader import config
+from engine.correlation_engine import correlate_anomalies
 
 anomalies = []
 
 # Get the absolute path to the anomalies file from global configuration
 ANOMALIES_FILE = Path(__file__).parent.parent / config["paths"]["raw_anomalies_json"]
 ANOMALY_ID_PATTERN = re.compile(r"^(?P<id>[A-Z]+_KN_\d+):\s*(?P<description>.+)$")
-
-
 
 
 def _normalize_issue(issue):
@@ -69,7 +68,6 @@ def _build_anomaly(
             anomaly["metadata"].setdefault("start_line", event["line_number"])
             anomaly["metadata"].setdefault("end_line", event["line_number"])
 
-
     if anomaly["category"] is None and anomaly["source"]:
         anomaly["category"] = str(anomaly["source"]).lower()
 
@@ -82,10 +80,16 @@ def _build_anomaly(
 def clear_anomalies():
     global anomalies
     anomalies = []
-    save_anomalies()
+    ANOMALIES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(ANOMALIES_FILE, "w", encoding="utf-8") as f:
+        json.dump([], f, indent=2)
 
 
 def save_anomalies():
+    global anomalies
+    # Apply cross-domain temporal correlation before saving
+    correlated = correlate_anomalies(anomalies)
+    anomalies = correlated
     ANOMALIES_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(ANOMALIES_FILE, "w", encoding="utf-8") as f:
         json.dump(anomalies, f, indent=2)
@@ -102,7 +106,4 @@ def collect(
         event=event,
         metadata=metadata,
     )
-
     anomalies.append(anomaly)
-
-

@@ -1,0 +1,65 @@
+# Automotive CAN Bus & UDS Diagnostic Subsystem Knowledge Base
+# Standards: ISO 11898 (CAN), ISO 14229 (UDS Diagnostics), ISO 15765 (DoCAN)
+
+can:
+  parameters:
+    uds_session_status:
+      name: "UDS Session Active"
+      symbol: "UDS_ACTIVE"
+      type: "boolean"
+      description: "Unified Diagnostic Services diagnostic session state"
+      critical: true
+
+    bus_state:
+      name: "CAN Bus Physical State"
+      symbol: "BUS_STATE"
+      type: "integer"
+      valid_range: [0, 2]
+      description: "0=Error Active, 1=Error Passive, 2=Bus Off"
+      critical: true
+
+    dtc_code:
+      name: "Diagnostic Trouble Code"
+      symbol: "DTC"
+      type: "string"
+      pattern: "^[0-9A-Fa-f]{4,6}$"
+      description: "Active ECU Fault Code reported over ISO 14229 Service 0x19"
+      critical: true
+
+  anomaly_rules:
+    uds_session_timeout:
+      id: "CAN_KN_001"
+      condition: "UDS_TIMEOUT == True"
+      severity: "HIGH"
+      why_it_happened: "UDS diagnostic session timed out (P2/P2* timer expired); target vehicle ECU failed to respond."
+      what_to_look_up: "Check vehicle ECU power state (IGN off/on), CAN-High/CAN-Low differential voltage, 120-ohm termination, and gateway sleep state."
+      suggested_fix: "Verify ECU heartbeat (Tester Present 0x3E) and inspect CAN bus wiring harness."
+      root_causes:
+        - "ECU went to sleep following ignition shutoff"
+        - "CAN-H / CAN-L short circuit or open circuit"
+        - "missing 120-ohm termination resistor"
+        - "baud rate mismatch or transceiver latch-up"
+
+    diagnostic_trouble_code_active:
+      id: "CAN_KN_002"
+      condition: "DTC_DETECTED == True"
+      severity: "CRITICAL"
+      why_it_happened: "Active Diagnostic Trouble Code (DTC) broadcast by vehicle powertrain/body ECU."
+      what_to_look_up: "Cross-reference DTC in OEM vehicle fault dictionary, check Freeze Frame data, and verify sensor inputs."
+      suggested_fix: "Inspect physical actuator/sensor corresponding to the logged DTC code and clear fault after repair."
+      root_causes:
+        - "powertrain or body controller component failure"
+        - "out-of-range sensor voltage"
+        - "wiring harness intermittent disconnect"
+
+    can_bus_off:
+      id: "CAN_KN_003"
+      condition: "BUS_STATE == 2"
+      severity: "CRITICAL"
+      why_it_happened: "CAN controller Tx Error Counter exceeded 255, forcing controller into CAN Bus-Off state."
+      what_to_look_up: "Inspect CAN physical layer with oscilloscope for bit stuffing errors, ground offset, or cable reflection."
+      suggested_fix: "Reset CAN controller transceiver and verify bus line impedance (approx 60 ohms between CAN-H and CAN-L)."
+      root_causes:
+        - "heavy bus traffic collision or baud rate mismatch"
+        - "severed CAN bus harness"
+        - "faulty CAN transceiver hardware"

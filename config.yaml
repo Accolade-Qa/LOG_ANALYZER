@@ -13,7 +13,6 @@ paths:
   ai_summary_md: "artifacts/ai_summary.md"
   report_dashboard_html: "artifacts/report_dashboard.html"
 
-
 # Live UART Hardware Communication Settings
 uart:
   default_port: "COM3"
@@ -25,11 +24,14 @@ live_tail:
   poll_interval: 0.1
   stop_on_idle_sec: 5.0
 
-# AI / LLM Configuration
+# Agentic AI / LLM Configuration
 ai:
-  model: "gemini-3.6-flash"
-  api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"
+  model: "gemini-3.5-flash-lite"
+  api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"
 
+# Cross-Domain Correlation Window (seconds)
+correlation:
+  window_seconds: 15.0
 
 # Severity Order Mapping
 severity_order:

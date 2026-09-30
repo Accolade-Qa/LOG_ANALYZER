@@ -1,0 +1,52 @@
+# AIS-140 Intelligent Transportation System Telematics Knowledge Base
+# Standards: Automotive Industry Standard 140 (AIS-140) by ARAI / MoRTH
+
+ais:
+  parameters:
+    packet_type:
+      name: "AIS-140 Packet Type"
+      symbol: "PktTyp"
+      type: "integer"
+      description: "1=Health/Heartbeat, 2=Emergency/Panic, 3=Normal Location Tracking"
+      critical: true
+
+    tx_sequence:
+      name: "Packet Transmission Sequence"
+      symbol: "TxSeq"
+      type: "integer"
+      description: "Monotonically incrementing telematics packet ID"
+      critical: false
+
+    emergency_state:
+      name: "Emergency Panic Input"
+      symbol: "EMR"
+      type: "integer"
+      valid_range: [0, 1]
+      description: "0=Normal, 1=Emergency panic button pressed or rollover crash detected"
+      critical: true
+      rule_id: "AIS_KN_001"
+
+  anomaly_rules:
+    emergency_panic_active:
+      id: "AIS_KN_001"
+      condition: "EMR == 1 OR PKT_TYPE == 2"
+      severity: "CRITICAL"
+      why_it_happened: "Vehicle emergency SOS button triggered or harsh impact/rollover sensor activated; high priority transmission."
+      what_to_look_up: "Verify vehicle emergency button line continuity, tilt sensor thresholds, and police server packet delivery."
+      suggested_fix: "Check SOS switch wiring harness for false ground or confirm physical emergency event."
+      root_causes:
+        - "passenger pressed SOS panic button"
+        - "SOS wiring harness short to chassis ground"
+        - "harsh impact accelerometer threshold trigger"
+
+    ais_queue_backlog:
+      id: "AIS_KN_002"
+      condition: "QUEUE_BACKLOG > 50"
+      severity: "HIGH"
+      why_it_happened: "AIS-140 historical packet buffer accumulating in SPI Flash without cloud transmission acknowledgment."
+      what_to_look_up: "Inspect cellular upload rate, MQTT broker packet rate limits, and SPI flash buffer health."
+      suggested_fix: "Ensure cellular connection is stable and verify backend ingestion throughput."
+      root_causes:
+        - "extended cellular blackout"
+        - "cloud server rate-limiting or 503 error"
+        - "corrupted SPI flash sector"

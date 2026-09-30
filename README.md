@@ -1,52 +1,55 @@
-# 🚀 Telemetry & Firmware Log Analyzer
+# 🚀 Agentic AI Automotive Telemetry & Firmware Log Analyzer
 
-> **Automated Multi-Domain Telemetry Log Analysis, Stateful Event Resolution & Generative AI Root Cause Synthesis for Automotive & IoT Embedded Systems.**
+> **Autonomous Multi-Domain Telemetry Log Analysis, Stateful Event Resolution, Cross-Subsystem Fault Correlation & Agentic AI Root Cause Synthesis for Automotive & IoT Embedded Systems.**
 
 ---
 
 ## 📌 Overview
 
-**LOG_ANALYZER** is a high-performance Python application engineered for QA engineers, firmware developers, and field validation teams. It processes raw telemetry traces from Telematics Control Units (TCUs), EV ECUs, and tracking devices.
+**LOG_ANALYZER** is a high-performance Python application engineered for Automotive QA engineers, TCU firmware developers, and vehicle validation teams. It processes raw telemetry traces from Telematics Control Units (TCUs), Electronic Control Units (ECUs), and vehicle tracking hardware.
 
-It ingests multi-gigabyte log files or real-time UART serial streams, classifies log events across 5 domain subsystems (**GPS**, **BATTERY**, **CAN Bus**, **Cellular Network**, **MQTT**), evaluates parameters against domain knowledge bases, tracks stateful anomaly durations, and synthesizes executive AI root cause reports.
+It ingests multi-gigabyte log files or real-time UART serial streams, classifies log events across 6 domain subsystems (**CAN / UDS**, **Battery & Power**, **GNSS / GPS**, **Cellular & MQTT**, **AIS-140 Telematics**, **System & RTOS**), tracks stateful outage lifecycles, performs cross-domain temporal causal correlation, and synthesizes executive diagnostic reports via an autonomous Agentic AI layer.
 
 ---
 
 ## 🌟 Key Features
 
-- **⚡ Fast Stream Ingestion**: Processes **200,000+ line log files in < 3 seconds** without memory overhead.
-- **🔄 Stateful Session Engine**: Tracks anomaly lifecycles from start line to recovery line (e.g. Line 2 → Line 40) and calculates outage duration (seconds).
-- **📡 Multi-Mode Operations**:
-  1. **Static File Mode**: Batch processing of stored `.log` files.
-  2. **Live Tail Mode (`tail -f`)**: Real-time non-blocking file tailing for growing log files.
-  3. **Hardware UART Serial Mode**: Real-time direct ingestion from device debug ports via `pyserial`.
-- **⚙️ Highly Configurable**: All directory paths, UART defaults, AI model endpoints, and parsing thresholds are managed via [`config.yaml`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/config.yaml).
-- **🧠 Generative AI Root Cause Analysis**: Leverages Google Gemini 2.5 Flash API (with offline fallback) to synthesize executive root cause diagnoses and remediation roadmaps.
-- **📊 Multidimensional Deliverables**: Generates structured JSON datasets and Markdown executive reports in the [`artifacts/`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts) folder.
+- **⚡ Fast Stream Ingestion**: High-throughput non-blocking line streaming processing **200,000+ line log files in seconds**.
+- **🔄 Stateful Outage Session Engine**: Tracks anomaly lifecycles from fault trigger to recovery (e.g. Line 8 → Line 147182) and calculates precise outage durations (seconds).
+- **🏎️ 6 Automotive Subsystem Agents**:
+  1. **CAN / UDS Diagnostics**: ISO 14229 UDS timeouts, CAN error passive/bus-off, active DTC fault codes.
+  2. **Battery & Vehicle Power**: 12V/24V external vehicle battery rails, cranking voltage sag, internal backup Li-ion SoC, and thermal monitoring.
+  3. **GNSS / Positioning**: NMEA/ATCU parsing, cold-boot lock timeouts, satellite count thresholds, zero coordinates.
+  4. **Cellular Network & MQTT**: CSQ RF quality, CREG network registration, CGREG packet attach, and cloud MQTT telemetry sockets.
+  5. **AIS-140 Telematics**: Indian government automotive ITS emergency SOS states, packet transmission sequence tracking, flash queue backlog.
+  6. **System RTOS & Sleep**: FreeRTOS heap memory depletion, MCU junction temperature, watchdog reboots, vehicle ignition state, and low-power standby cycles.
+- **🔗 Cross-Domain Temporal Correlation Engine**: Differentiates primary root causes from secondary symptoms (e.g., identifies that CAN timeouts and GPS fix suspensions were caused by the vehicle entering low-power sleep mode after ignition shutoff).
+- **🧠 Agentic AI Diagnostic Layer**: Autonomous ReAct agent with diagnostic inspection tools to investigate log windows, verify hypotheses, and generate executive root cause reports via Google Gemini API (with offline expert fallback).
+- **🤖 Interactive Automotive Copilot (`--copilot`)**: Conversational CLI allowing test engineers to interrogate the log, ask questions in natural language, and receive cited answers with line references.
+- **📊 Interactive HTML Dashboard**: Visual dark-mode dashboard with KPI metrics, subsystem filters, search controls, and raw fault/recovery traces.
 
 ---
 
 ## 📐 Architecture & Data Flow
 
 ```mermaid
-graph TD
+flowchart TD
     A["Log Input Mode<br/>(File / Live Tail / Hardware UART)"] --> B["Stream Reader & Classifier<br/>(parser/classifier.py)"]
     B --> C["Pub/Sub Event Dispatcher<br/>(engine/dispatcher.py)"]
-    C --> D1["GPS Agent"]
-    C --> D2["Battery Agent"]
-    C --> D3["CAN Agent"]
+    C --> D1["CAN / UDS Agent"]
+    C --> D2["Battery & Power Agent"]
+    C --> D3["GNSS / GPS Agent"]
     C --> D4["Network Agent"]
-    C --> D5["MQTT Agent"]
-    D1 --> E["Stateful Anomaly Collector<br/>(reports/anomaly_collector.py)"]
-    D2 --> E
-    D3 --> E
-    D4 --> E
-    D5 --> E
-    E --> F["artifacts/raw_anomalies.json"]
-    F --> G["Report Generator<br/>(reports/report_generator.py)"]
-    F --> H["AI Synthesis Agent<br/>(llm/summary_agent.py)"]
-    G --> I["artifacts/report_cards.md & final_report.md"]
-    H --> J["artifacts/ai_summary.md"]
+    C --> D5["AIS-140 Agent"]
+    C --> D6["System Agent"]
+    D1 & D2 & D3 & D4 & D5 & D6 --> E["Stateful Anomaly Collector<br/>(reports/anomaly_collector.py)"]
+    E --> F["Cross-Domain Correlation Engine<br/>(engine/correlation_engine.py)"]
+    F --> G["Correlated raw_anomalies.json"]
+    G --> H["Report Generator<br/>(reports/report_generator.py)"]
+    G --> I["Agentic AI Diagnostic Engine<br/>(llm/agentic_engine.py)"]
+    H --> J["artifacts/report_dashboard.html"]
+    I --> K["artifacts/ai_summary.md"]
+    I --> L["Interactive Copilot CLI"]
 ```
 
 ---
@@ -62,10 +65,6 @@ pip install -r requirements.txt
 ```
 
 ### 3. Configure Environment Variables
-Copy `.env.example` to `.env` and set your optional Gemini API Key:
-```bash
-cp .env.example .env
-```
 Inside `.env`:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -77,74 +76,48 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ## 🚀 Usage Guide
 
 ### 1. Static File Mode (Default)
-Analyze a static log file (e.g. FOTA update log or drive-test log):
+Analyze an automotive log file:
 ```bash
-python main.py --log-file logs/REL18_TO_REL24.log
+python main.py --log-file logs/FOTA_REL_18_861564061380138_To_REL_05.log
 ```
 
-### 2. Live Growing File Tailing Mode (`tail -f`)
-Tail a growing log file dynamically updated during active testing:
+### 2. Interactive Copilot Mode (`--copilot`)
+Launch the conversational AI Copilot to ask questions about the analyzed log:
+```bash
+python main.py --log-file logs/FOTA_REL_18_861564061380138_To_REL_05.log --copilot
+```
+*Example Questions:*
+- *"Why did the CAN UDS session timeout occur?"*
+- *"Was the battery voltage normal when the modem lost registration?"*
+- *"Show all critical severity events and suggest firmware fixes."*
+
+### 3. Live Growing File Tailing Mode (`tail -f`)
+Tail a growing log file dynamically during active bench testing:
 ```bash
 python main.py --mode tail --log-file logs/live_telemetry.log
 ```
 
-### 3. Hardware UART Serial Port Streaming Mode
+### 4. Hardware UART Serial Port Streaming Mode
 Connect directly to ECU debug hardware over USB-to-UART serial interface:
 ```bash
 python main.py --mode uart --port COM3 --baud 115200
-```
-
-### View All Command Options
-```bash
-python main.py --help
-```
-
----
-
-## ⚙️ Configuration Guide (`config.yaml`)
-
-Global runtime behavior can be customized in [`config.yaml`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/config.yaml):
-
-```yaml
-paths:
-  log_dir: "logs"
-  artifact_dir: "artifacts"
-  default_log_file: "logs/REL18_TO_REL24.log"
-  raw_anomalies_json: "artifacts/raw_anomalies.json"
-  report_cards_md: "artifacts/report_cards.md"
-  final_report_md: "artifacts/final_report.md"
-  ai_summary_md: "artifacts/ai_summary.md"
-
-uart:
-  default_port: "COM3"
-  default_baudrate: 115200
-  timeout: 1.0
-
-live_tail:
-  poll_interval: 0.1
-  stop_on_idle_sec: 5.0
-
-ai:
-  model: "gemini-2.5-flash"
-  api_url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 ```
 
 ---
 
 ## 📁 Output Deliverables (`artifacts/`)
 
-All generated deliverables are stored in the [`artifacts/`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts) directory:
+All generated deliverables are stored in the [`artifacts/`](file:///D:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts) directory:
 
-- **[`artifacts/raw_anomalies.json`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/raw_anomalies.json)**: Normalized JSON dataset of all detected anomaly events with line metadata and duration metrics.
-- **[`artifacts/report_cards.md`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/report_cards.md)**: Individual anomaly cards with raw log evidence and suggested fixes.
-- **[`artifacts/final_report.md`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/final_report.md)**: Executive report containing severity breakdown, source distribution, line ranges, and outage durations.
-- **[`artifacts/ai_summary.md`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/ai_summary.md)**: Predictive root cause analysis and recommended action roadmap.
+- **[`artifacts/raw_anomalies.json`](file:///D:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/raw_anomalies.json)**: Correlated JSON dataset of all detected anomaly events across all 6 subsystems with line metadata, outage duration metrics, and causal dependency tags.
+- **[`artifacts/report_dashboard.html`](file:///D:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/report_dashboard.html)**: Interactive visual HTML dashboard with KPI summary, subsystem filter buttons, search bar, and raw fault traces.
+- **[`artifacts/ai_summary.md`](file:///D:/AEPL_AUTOMATION/LOG_ANALYZER/artifacts/ai_summary.md)**: Agentic AI root cause synthesis, cross-domain cascade analysis, and QA remediation roadmap.
 
 ---
 
 ## 📖 Knowledge Base Documentation
 
-For complete technical specifications, NMEA/ATCU telemetry command schemas, anomaly rule IDs (`GPS_KN_001`, `BATT_KN_001`, etc.), and parameter threshold tables, consult the [`KNOWLEDGE_BASE.md`](file:///d:/AEPL_AUTOMATION/LOG_ANALYZER/KNOWLEDGE_BASE.md) file.
+For technical specifications, NMEA/ATCU telemetry command schemas, anomaly rule IDs (`CAN_KN_001`, `BATT_KN_001`, `GPS_KN_001`, etc.), and parameter threshold tables, consult [`KNOWLEDGE_BASE.md`](file:///D:/AEPL_AUTOMATION/LOG_ANALYZER/KNOWLEDGE_BASE.md).
 
 ---
 
@@ -152,35 +125,39 @@ For complete technical specifications, NMEA/ATCU telemetry command schemas, anom
 
 ```
 LOG_ANALYZER/
-├── agents/                 # Subsystem Domain Agents (GPS, Battery, CAN, Net, MQTT)
+├── agents/                 # Subsystem Domain Agents
 │   ├── base_agent.py       # Stateful Session Lifecycle Manager
-│   ├── battery_agent.py    # Battery Telemetry Rules
-│   ├── can_agent.py        # CAN Bus & UDS Rules
-│   ├── gps_agent.py        # GPS Telemetry Rules
-│   ├── mqtt_agent.py       # MQTT Telemetry Rules
-│   └── net_agent.py        # Cellular Network Rules
-├── engine/                 # Event Dispatcher Engine
-│   └── dispatcher.py
+│   ├── battery_agent.py    # 12V/24V Vehicle & Internal Li-ion Battery Agent
+│   ├── can_agent.py        # ISO 14229 UDS & CAN Bus Diagnostic Agent
+│   ├── gps_agent.py        # GNSS Positioning & NMEA Telemetry Agent
+│   ├── net_agent.py        # Cellular CSQ, CREG/CGREG & MQTT Agent
+│   ├── ais_agent.py        # AIS-140 ITS Emergency Telematics Agent
+│   └── system_agent.py     # RTOS Heap, CPU Temp, Watchdog & Sleep Agent
+├── engine/                 # Processing & Correlation Engine
+│   ├── dispatcher.py       # Pub/Sub Subsystem Event Dispatcher
+│   └── correlation_engine.py # Cross-Domain Causal Cascade Engine
 ├── parser/                 # Stream Parsers & Classifiers
-│   ├── classifier.py       # Regex Classifier
-│   ├── gps_log_reader.py   # Static Line Reader
+│   ├── classifier.py       # Multi-Domain Subsystem Regex Classifier
+│   ├── gps_log_reader.py   # High-Throughput Stream Reader
 │   └── live_stream_reader.py # Live Tailing & UART Serial Reader
 ├── reports/                # Report Generators & Collector
-│   ├── anomaly_collector.py
-│   └── report_generator.py
-├── llm/                    # Generative AI Synthesis Layer
-│   └── summary_agent.py
-├── knowledge/              # YAML Parameter Rules & Thresholds
-│   ├── gps/
-│   ├── battery/
-│   ├── can/
-│   └── mqtt/
-├── artifacts/              # Output Deliverables (JSON & Markdown)
-├── logs/                   # Raw Sample Input Log Files
-├── config.yaml             # Global YAML Configuration File
-├── config_loader.py        # Configuration Loader Module
+│   ├── anomaly_collector.py # Anomaly Collector & Normalizer
+│   └── report_generator.py # Interactive HTML Dashboard Generator
+├── llm/                    # Agentic AI Synthesis Layer
+│   ├── agentic_engine.py   # Autonomous ReAct Diagnostic Agent & Copilot
+│   └── summary_agent.py    # AI Summary Wrapper
+├── knowledge/              # Subsystem YAML Parameter Rules & Thresholds
+│   ├── battery/parameters.yaml
+│   ├── can/parameters.yaml
+│   ├── gps/parameters.yaml
+│   ├── net/parameters.yaml
+│   ├── ais/parameters.yaml
+│   └── system/parameters.yaml
+├── artifacts/              # Output Deliverables (JSON, HTML & Markdown)
+├── logs/                   # Raw Automotive Log Files
+├── config.yaml             # Global Runtime Configuration
+├── config_loader.py        # Configuration Loader
 ├── KNOWLEDGE_BASE.md       # Comprehensive Domain Knowledge Base
 ├── README.md               # Project Documentation
-├── .env.example            # Environment Variable Template
 └── main.py                 # Application Entry Point & CLI
 ```
