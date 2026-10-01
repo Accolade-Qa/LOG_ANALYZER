@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+from engine.reactive_bus import blackboard, reactive_bus
 from reports.anomaly_collector import collect
 
 TIMESTAMP_PATTERN = re.compile(r"\[(?P<ts>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?)\]")
@@ -23,9 +24,25 @@ def _extract_timestamp_seconds(raw_line):
 
 
 class BaseAgent:
-    """Base class for telemetry subsystem agents with stateful session management."""
+    """
+    Base class for automotive telemetry subsystem agents.
+    Equipped with stateful session management, real-time reactive event bus subscriptions,
+    and cross-agent collaborative dependency resolution.
+    """
 
     def __init__(self):
+        self.anomalies = []
+        self.active_sessions = {}
+        self.bus = reactive_bus
+        self.blackboard = blackboard
+        self.register_reactive_subscriptions()
+
+    def register_reactive_subscriptions(self):
+        """Derived agents override this hook to register reactive event listeners."""
+        pass
+
+    def reset_state(self):
+        """Reset internal session and anomaly state for fresh analysis run."""
         self.anomalies = []
         self.active_sessions = {}
 
@@ -41,8 +58,10 @@ class BaseAgent:
         category=None,
         severity="medium",
         event=None,
+        causal_dependency=None,
+        collaborative_context=None,
     ):
-        """Open an active anomaly session if not already open."""
+        """Open an active anomaly session if not already open, tracking causal dependencies."""
         raw_line = event.get("raw") if event else None
         line_num = event.get("line_number") if event else None
 
@@ -65,6 +84,8 @@ class BaseAgent:
             "start_ts": _extract_timestamp_seconds(raw_line),
             "end_ts": _extract_timestamp_seconds(raw_line),
             "event": event,
+            "causal_dependency": causal_dependency,
+            "collaborative_context": collaborative_context,
         }
         self.active_sessions[session_key] = session
         self.add_anomaly(issue)
@@ -125,6 +146,8 @@ class BaseAgent:
             "start_raw_line": session.get("start_raw_line"),
             "recovery_line": raw_line,
             "recovery_message": recovery_message,
+            "causal_dependency": session.get("causal_dependency"),
+            "collaborative_context": session.get("collaborative_context"),
         }
 
         collect(
@@ -167,6 +190,8 @@ class BaseAgent:
                 "status": "UNRESOLVED",
                 "start_raw_line": session.get("start_raw_line"),
                 "recovery_line": session.get("end_raw_line"),
+                "causal_dependency": session.get("causal_dependency"),
+                "collaborative_context": session.get("collaborative_context"),
             }
 
             collect(
@@ -177,4 +202,3 @@ class BaseAgent:
                 event=session.get("event"),
                 metadata=metadata,
             )
-

@@ -10,6 +10,7 @@ class BatteryAgent(BaseAgent):
     Automotive Battery & Power Subsystem Agent.
     Monitors 12V/24V external vehicle battery rails, backup Li-ion voltage,
     SoC percentage, and thermal parameters against YAML rules.
+    Publishes real-time voltage sag & brownout warnings to CANAgent, GPSAgent, and SystemAgent.
     """
 
     def __init__(self):
@@ -22,8 +23,20 @@ class BatteryAgent(BaseAgent):
             "last_ext_voltage": 12.0,
             "last_temperature": 25.0,
         }
+        self.system_in_sleep = False
         self.parameters_config = self._load_parameters()
         self.anomaly_rules = self.parameters_config.get("anomaly_rules", {})
+
+    def register_reactive_subscriptions(self):
+        """Subscribe to system power states to verify sleep quiescent power."""
+        self.bus.subscribe("SYSTEM_SLEEP_ENTER", self._on_system_sleep)
+        self.bus.subscribe("SYSTEM_SLEEP_EXIT", self._on_system_wake)
+
+    def _on_system_sleep(self, payload, sender):
+        self.system_in_sleep = True
+
+    def _on_system_wake(self, payload, sender):
+        self.system_in_sleep = False
 
     def _load_parameters(self):
         params_file = self.knowledge_dir / "parameters.yaml"
@@ -53,7 +66,6 @@ class BatteryAgent(BaseAgent):
                     pass
 
         # 2. Telematics Component Execution Format:
-        # [PLA] ANALOG  INT BATT 3.76V 55.58 PERCENT, TMPR 0, EXT BATT 23.98V, AN 0.00V, 23.96V
         int_match = re.search(r"INT\s+BATT\s+([\d.]+)V\s+([\d.]+)\s*PERCENT", line, re.IGNORECASE)
         if int_match:
             params["int_voltage"] = float(int_match.group(1))
@@ -87,6 +99,7 @@ class BatteryAgent(BaseAgent):
         soc = params.get("int_soc", self.battery_state["last_int_soc"])
         ext_v = params.get("ext_voltage", self.battery_state["last_ext_voltage"])
         tmpr = params.get("temperature", self.battery_state["last_temperature"])
+        line_num = event.get("line_number")
 
         context = {
             "INT_BATT": int_v,
@@ -94,6 +107,12 @@ class BatteryAgent(BaseAgent):
             "EXT_BATT": ext_v,
             "TMPR": tmpr,
         }
+
+        # Broadcast reactive notifications on voltage thresholds
+        if ext_v is not None and ext_v < 9.0:
+            self.bus.publish("BATTERY_BROWNOUT", {"voltage": ext_v, "line_number": line_num}, sender="BATTERY")
+        elif ext_v is not None and ext_v < 11.5:
+            self.bus.publish("BATTERY_VOLTAGE_LOW", {"voltage": ext_v, "line_number": line_num}, sender="BATTERY")
 
         for rule_key, rule_def in self.anomaly_rules.items():
             rule_id = rule_def.get("id", rule_key)
@@ -111,40 +130,26 @@ class BatteryAgent(BaseAgent):
                     event=event,
                 )
 
-        # Recovery checks:
-        if ext_v >= 11.5:
-            self.close_session(
-                "BATT_KN_001",
-                recovery_event=event,
-                recovery_message=f"External vehicle battery voltage restored: {ext_v}V",
-            )
-            self.close_session(
-                "BATT_KN_004",
-                recovery_event=event,
-                recovery_message=f"Cranking sag recovered: {ext_v}V",
-            )
-
-        if int_v >= 3.6 and soc >= 30.0:
-            self.close_session(
-                "BATT_KN_002",
-                recovery_event=event,
-                recovery_message=f"Internal backup battery charged: {int_v}V ({soc}%)",
-            )
-
-        if tmpr <= 45.0:
-            self.close_session(
-                "BATT_KN_003",
-                recovery_event=event,
-                recovery_message=f"Battery temperature normalized: {tmpr} C",
-            )
+        # Dynamic Recovery Trigger
+        if ext_v >= 11.5 and int_v >= 3.6:
+            for rule_def in self.anomaly_rules.values():
+                rule_id = rule_def.get("id")
+                if rule_id in ["BATT_KN_001", "BATT_KN_003"]:
+                    self.close_session(
+                        rule_id,
+                        recovery_event=event,
+                        recovery_message=f"Battery rails healthy: EXT={ext_v}V, INT={int_v}V",
+                    )
 
     def handle(self, event):
         line = event.get("raw", "")
+        line_num = event.get("line_number")
         params = self._parse_battery_line(line)
         if not params:
             return
 
         self.battery_state["messages_received"] += 1
+
         if "int_voltage" in params:
             self.battery_state["last_int_voltage"] = params["int_voltage"]
         if "int_soc" in params:
@@ -153,6 +158,12 @@ class BatteryAgent(BaseAgent):
             self.battery_state["last_ext_voltage"] = params["ext_voltage"]
         if "temperature" in params:
             self.battery_state["last_temperature"] = params["temperature"]
+
+        self.blackboard.set_battery(
+            ext_v=params.get("ext_voltage"),
+            int_v=params.get("int_voltage"),
+            line_number=line_num,
+        )
 
         self._evaluate_yaml_rules(params, event)
 

@@ -58,6 +58,19 @@ def correlate_anomalies(anomalies, time_window_seconds=15.0):
             "diagnostic_insight": "Isolated subsystem telemetry fault.",
         }
 
+        # 0. High-Priority Live Reactive Agent Collaboration Dependency
+        if meta.get("causal_dependency"):
+            dep = meta.get("causal_dependency")
+            collab = meta.get("collaborative_context", "Inter-agent reactive dependency verified.")
+            a["correlation"] = {
+                "is_cascade_symptom": True,
+                "primary_trigger": dep,
+                "pattern_type": "REACTIVE_AGENT_COLLABORATION",
+                "confidence": 0.98,
+                "diagnostic_insight": collab,
+            }
+            continue
+
         # 1. Check if CAN timeout or GPS loss is a symptom of Vehicle Sleep Mode
         if aid in ["CAN_KN_001", "GPS_KN_001", "NET_KN_004"]:
             matching_sleep = [

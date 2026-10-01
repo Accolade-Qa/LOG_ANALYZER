@@ -10,6 +10,8 @@ class NetAgent(BaseAgent):
     Automotive Cellular Network & Cloud MQTT Telemetry Agent.
     Monitors CSQ RF signal strength, CREG network registration, CGREG data attach,
     and MQTT broker connectivity.
+    Reactively publishes TCP transport drop events to FOTAAgent and AISAgent,
+    and collaborates with SystemAgent to separate planned modem sleep from RF dropped calls.
     """
 
     def __init__(self):
@@ -24,8 +26,34 @@ class NetAgent(BaseAgent):
             "last_mqtt": 1,
             "last_operator": "",
         }
+        self.system_in_sleep = False
+        self.ignition_on = True
+        self.sleep_line = None
+        self.battery_brownout = False
+
         self.parameters_config = self._load_parameters()
         self.anomaly_rules = self.parameters_config.get("anomaly_rules", {})
+
+    def register_reactive_subscriptions(self):
+        """Subscribe to system power management and battery health events."""
+        self.bus.subscribe("SYSTEM_SLEEP_ENTER", self._on_system_sleep)
+        self.bus.subscribe("SYSTEM_SLEEP_EXIT", self._on_system_wake)
+        self.bus.subscribe("IGNITION_CHANGED", self._on_ignition_changed)
+        self.bus.subscribe("BATTERY_BROWNOUT", self._on_battery_brownout)
+
+    def _on_system_sleep(self, payload, sender):
+        self.system_in_sleep = True
+        self.sleep_line = payload.get("line_number")
+
+    def _on_system_wake(self, payload, sender):
+        self.system_in_sleep = False
+
+    def _on_ignition_changed(self, payload, sender):
+        ign = payload.get("ignition")
+        self.ignition_on = (ign == 1)
+
+    def _on_battery_brownout(self, payload, sender):
+        self.battery_brownout = True
 
     def _load_parameters(self):
         params_file = self.knowledge_dir / "parameters.yaml"
@@ -59,7 +87,6 @@ class NetAgent(BaseAgent):
                     pass
 
         # 2. Telematics Component Execution Format:
-        # [PLA] NET     CSQ 26, CREG: 2, CGREG: 2, TCP SKT: 000, MQTT: 0, OPR NM:
         csq_match = re.search(r"CSQ\s*[:]?\s*(\d+)", line, re.IGNORECASE)
         creg_match = re.search(r"CREG\s*[:]?\s*(\d+)", line, re.IGNORECASE)
         cgreg_match = re.search(r"CGREG\s*[:]?\s*(\d+)", line, re.IGNORECASE)
@@ -80,10 +107,15 @@ class NetAgent(BaseAgent):
         if opr_match:
             params["operator"] = opr_match.group(1).strip()
 
+        # 3. Connection drop notifications
+        if "got tcp disconnected" in line.lower() or "tcp disconnected" in line.lower():
+            params["tcp_disconnected"] = True
+
         return params
 
     def handle(self, event):
         line = event.get("raw", "")
+        line_num = event.get("line_number")
         params = self._parse_net_line(line)
         if not params:
             return
@@ -94,8 +126,16 @@ class NetAgent(BaseAgent):
         cgreg = params.get("cgreg")
         mqtt = params.get("mqtt")
 
+        is_sleeping = self.system_in_sleep or self.blackboard.is_vehicle_sleeping()
+
+        # Publish TCP drop to reactive bus (FOTAAgent and AISAgent listen to this)
+        if params.get("tcp_disconnected"):
+            self.blackboard.set_cellular(tcp_connected=False, line_number=line_num)
+            self.bus.publish("TCP_SOCKET_DROPPED", {"line_number": line_num, "raw": line.strip()}, sender="NET")
+
         if csq is not None:
             self.net_state["last_csq"] = csq
+            self.blackboard.set_cellular(csq=csq, line_number=line_num)
             if csq < 10:
                 self.open_session(
                     session_key="NET_KN_001",
@@ -114,17 +154,49 @@ class NetAgent(BaseAgent):
 
         if creg is not None:
             self.net_state["last_creg"] = creg
+            self.blackboard.set_cellular(creg=creg, line_number=line_num)
             if creg in [0, 2, 3]:
+                self.bus.publish("CELLULAR_DISCONNECTED", {"creg": creg, "line_number": line_num}, sender="NET")
                 status_desc = {0: "Not registered", 2: "Searching", 3: "Registration denied"}.get(creg, str(creg))
+
+                if is_sleeping:
+                    self.bus.record_collaboration(
+                        consumer_agent="NET",
+                        upstream_agent="SYSTEM",
+                        relationship="STANDBY_CASCADE",
+                        evidence=f"Cellular network detachment at Line {line_num} coincides with vehicle parked sleep mode (IGN=0).",
+                        line_number=line_num,
+                    )
+                    causal_dep = "SystemAgent:SYS_KN_004"
+                    collab_ctx = (
+                        f"Secondary cascade: SystemAgent confirmed vehicle entered low-power standby sleep "
+                        f"(IGN=0 around Line {self.sleep_line or 2}). Cellular modem in PSM/eDRX sleep."
+                    )
+                    severity = "low"
+                    issue_text = f"NET_KN_002: Cellular network unattached (Expected Standby Cascade - Vehicle Sleeping)"
+                elif self.battery_brownout or self.blackboard.is_battery_brownout:
+                    causal_dep = "BatteryAgent:BATT_KN_001"
+                    collab_ctx = "Secondary cascade: BatteryAgent reported main rail voltage sag below operating threshold."
+                    severity = "high"
+                    issue_text = f"NET_KN_002: Cellular network unattached (Battery Brownout Induced)"
+                else:
+                    causal_dep = None
+                    collab_ctx = "Primary fault: Vehicle active (IGN=ON); Cellular modem lost carrier registration."
+                    severity = "high"
+                    issue_text = f"NET_KN_002: Cellular network unattached (CREG={creg}: {status_desc})"
+
                 self.open_session(
                     session_key="NET_KN_002",
-                    issue=f"NET_KN_002: Cellular network unattached (CREG={creg}: {status_desc})",
+                    issue=issue_text,
                     source="NET",
                     category="net",
-                    severity="high",
+                    severity=severity,
                     event=event,
+                    causal_dependency=causal_dep,
+                    collaborative_context=collab_ctx,
                 )
             elif creg in [1, 5]:
+                self.bus.publish("CELLULAR_CONNECTED", {"creg": creg, "line_number": line_num}, sender="NET")
                 self.close_session(
                     "NET_KN_002",
                     recovery_event=event,
@@ -139,8 +211,10 @@ class NetAgent(BaseAgent):
                     issue=f"NET_KN_003: GPRS/LTE packet data unattached (CGREG={cgreg})",
                     source="NET",
                     category="net",
-                    severity="high",
+                    severity="high" if not is_sleeping else "low",
                     event=event,
+                    causal_dependency="SystemAgent:SYS_KN_004" if is_sleeping else None,
+                    collaborative_context="Modem in standby sleep." if is_sleeping else None,
                 )
             elif cgreg in [1, 5]:
                 self.close_session(
@@ -152,13 +226,26 @@ class NetAgent(BaseAgent):
         if mqtt is not None:
             self.net_state["last_mqtt"] = mqtt
             if mqtt == 0:
+                if is_sleeping:
+                    causal_dep = "SystemAgent:SYS_KN_004"
+                    collab_ctx = "Modem entered sleep mode: SystemAgent confirmed vehicle is in parked low-power sleep (IGN=0)."
+                    severity = "low"
+                    issue_text = "NET_KN_004: MQTT telemetry broker disconnected (Expected Standby Cascade - Vehicle Sleeping)"
+                else:
+                    causal_dep = None
+                    collab_ctx = "Primary fault: Cloud MQTT socket connection lost while vehicle is active."
+                    severity = "high"
+                    issue_text = "NET_KN_004: MQTT telemetry broker disconnected"
+
                 self.open_session(
                     session_key="NET_KN_004",
-                    issue="NET_KN_004: MQTT telemetry broker disconnected",
+                    issue=issue_text,
                     source="NET",
                     category="net",
-                    severity="high",
+                    severity=severity,
                     event=event,
+                    causal_dependency=causal_dep,
+                    collaborative_context=collab_ctx,
                 )
             elif mqtt == 1:
                 self.close_session(

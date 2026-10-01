@@ -10,6 +10,7 @@ class AISAgent(BaseAgent):
     AIS-140 Automotive Telematics Protocol Agent.
     Monitors AIS-140 primary location frames, emergency panic packet generation (EPB),
     transmission sequence gaps, and historical queue persistence.
+    Reactively collaborates with GPSAgent for fix validity and NetAgent for cellular transmission.
     """
 
     def __init__(self):
@@ -21,8 +22,25 @@ class AISAgent(BaseAgent):
             "last_pkt_typ": 3,
             "epb_count": 0,
         }
+        self.gps_has_fix = False
+        self.net_connected = True
         self.parameters_config = self._load_parameters()
         self.anomaly_rules = self.parameters_config.get("anomaly_rules", {})
+
+    def register_reactive_subscriptions(self):
+        """Subscribe to GPS and Network events for location frame validation."""
+        self.bus.subscribe("GNSS_FIX_ACQUIRED", self._on_gps_fix_acquired)
+        self.bus.subscribe("TCP_SOCKET_DROPPED", self._on_tcp_socket_dropped)
+        self.bus.subscribe("CELLULAR_CONNECTED", self._on_cellular_connected)
+
+    def _on_gps_fix_acquired(self, payload, sender):
+        self.gps_has_fix = True
+
+    def _on_tcp_socket_dropped(self, payload, sender):
+        self.net_connected = False
+
+    def _on_cellular_connected(self, payload, sender):
+        self.net_connected = True
 
     def _load_parameters(self):
         params_file = self.knowledge_dir / "parameters.yaml"
@@ -58,6 +76,7 @@ class AISAgent(BaseAgent):
 
     def handle(self, event):
         line = event.get("raw", "")
+        line_num = event.get("line_number")
         params = self._parse_ais_line(line)
         if not params:
             return
@@ -65,6 +84,18 @@ class AISAgent(BaseAgent):
         self.ais_state["messages_received"] += 1
 
         if params.get("emergency") or params.get("pkt_type") == 2:
+            # Check GPS collaboration for emergency tracking accuracy
+            gps_status = "Valid 3D Fix" if self.blackboard.gps_locked else "No Fix / Dead Reckoning"
+            collab_ctx = f"AIS-140 emergency dispatch activated. GPS position status: {gps_status} ({self.blackboard.gps_satellites} satellites)."
+            if not self.blackboard.gps_locked:
+                self.bus.record_collaboration(
+                    consumer_agent="AIS",
+                    upstream_agent="GPS",
+                    relationship="DEGRADED_COORDINATES",
+                    evidence=f"Emergency panic frame generated without 3D GPS fix (Satellites: {self.blackboard.gps_satellites}).",
+                    line_number=line_num,
+                )
+
             self.open_session(
                 session_key="AIS_KN_001",
                 issue="AIS_KN_001: Emergency SOS Panic State Triggered (PktTyp=2 / EMR=1)",
@@ -72,6 +103,7 @@ class AISAgent(BaseAgent):
                 category="ais",
                 severity="critical",
                 event=event,
+                collaborative_context=collab_ctx,
             )
         elif params.get("pkt_type") == 3:
             self.close_session(

@@ -13,6 +13,8 @@ load_dotenv()
 
 from agents import ALL_AGENTS
 from config_loader import config
+from engine.dispatcher import reset_all_agents
+from engine.unsupervised_scanner import scan_unmodeled_anomalies
 from llm.agentic_engine import AutomotiveDiagnosticAgent
 from parser.gps_log_reader import process_log
 from parser.live_stream_reader import stream_growing_file, stream_uart_port
@@ -21,7 +23,7 @@ from reports.report_generator import generate_html_dashboard
 
 
 def run_interactive_copilot(log_path=None):
-    """Launch interactive Automotive Diagnostic Copilot CLI session."""
+    """Launch interactive Level 4 Autonomous Automotive Diagnostic Copilot CLI session."""
     raw_path = BASE_DIR / config["paths"]["raw_anomalies_json"]
     anomalies = []
     if raw_path.exists():
@@ -32,11 +34,12 @@ def run_interactive_copilot(log_path=None):
             anomalies = []
 
     agent = AutomotiveDiagnosticAgent(log_path=log_path)
-    print("\n" + "=" * 70)
-    print("🤖 Automotive Telemetry AI Copilot (Interactive Mode)")
-    print("Ask questions about anomalies, CAN timeouts, battery voltages, or line events.")
+    print("\n" + "=" * 75)
+    print("🤖 Level 4 Autonomous Automotive Telemetry Copilot (Interactive Mode)")
+    print("Direct ReAct log search & multi-tool evidence grounding active.")
+    print("Ask questions about anomalies, CAN timeouts, FOTA requests, or line events.")
     print("Type 'exit' or 'quit' to end session.")
-    print("=" * 70 + "\n")
+    print("=" * 75 + "\n")
 
     while True:
         try:
@@ -47,10 +50,10 @@ def run_interactive_copilot(log_path=None):
                 print("Ending Copilot session. Goodbye!")
                 break
             
-            print("\nAnalyzing telemetry context and verifying log evidence...")
+            print("\nAnalyzing telemetry context and executing dynamic log inspection tools...")
             answer = agent.answer_copilot_query(user_input, anomalies)
             print(f"\n{answer}\n")
-            print("-" * 70)
+            print("-" * 75)
         except (KeyboardInterrupt, EOFError):
             print("\nExiting Copilot.")
             break
@@ -58,7 +61,7 @@ def run_interactive_copilot(log_path=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Agentic AI Automotive Telemetry & Firmware Log Analyzer"
+        description="Level 4 Autonomous Agentic AI Automotive Telemetry & Log Analyzer"
     )
     parser.add_argument(
         "--mode",
@@ -92,8 +95,9 @@ def main():
     )
     args = parser.parse_args()
 
-    # Reset anomaly collector state for clean run
+    # Reset anomaly collector and all reactive agents state for clean run
     clear_anomalies()
+    reset_all_agents()
 
     analyzed_log_file = None
 
@@ -151,13 +155,43 @@ def main():
     # Persist anomalies JSON with cross-domain temporal correlations
     save_anomalies()
 
-    # Generate multi-domain HTML dashboard with Agentic AI synthesis
-    dashboard_html_path = generate_html_dashboard(log_path=analyzed_log_file)
+    # Execute Level 4 Unsupervised Semantic Discovery on zero-shot telemetry lines
+    print("Executing Level 4 Unsupervised Semantic Log Adaptation...")
+    raw_path = BASE_DIR / config["paths"]["raw_anomalies_json"]
+    known_lines = []
+    if raw_path.exists():
+        try:
+            with open(raw_path, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                for s in saved:
+                    sl = s.get("metadata", {}).get("start_line")
+                    el = s.get("metadata", {}).get("end_line")
+                    if sl:
+                        known_lines.append(sl)
+                    if el:
+                        known_lines.append(el)
+        except Exception:
+            pass
 
-    print("\nAutomotive Telemetry Analysis Completed Successfully!")
+    discovered_anomalies = []
+    if analyzed_log_file:
+        discovered_anomalies = scan_unmodeled_anomalies(analyzed_log_file, known_anomaly_lines=known_lines)
+        print(f" - Discovered {len(discovered_anomalies)} novel unmodeled anomaly clusters on zero-shot log lines.")
+
+    # Generate multi-domain HTML dashboard with Level 4 Agentic AI synthesis
+    dashboard_html_path = generate_html_dashboard(
+        log_path=analyzed_log_file,
+        discovered_anomalies=discovered_anomalies,
+    )
+
+    discovered_yaml = BASE_DIR / "artifacts" / "discovered_rules.yaml"
+
+    print("\nLevel 4 Autonomous Telemetry Analysis Completed Successfully!")
     print("Generated Artifacts:")
-    print(f" - Raw Anomalies Data (Correlated): {BASE_DIR / config['paths']['raw_anomalies_json']}")
-    print(f" - AI Diagnostic Synthesis: {BASE_DIR / config['paths']['ai_summary_md']}")
+    print(f" - Correlated Telemetry Data: {BASE_DIR / config['paths']['raw_anomalies_json']}")
+    print(f" - Level 4 AI Diagnostic Synthesis: {BASE_DIR / config['paths']['ai_summary_md']}")
+    if discovered_yaml.exists():
+        print(f" - Self-Adapted Rule Proposals: {discovered_yaml}")
     print(f" - HTML Diagnostic Dashboard: {dashboard_html_path}")
 
     # Launch interactive copilot if requested

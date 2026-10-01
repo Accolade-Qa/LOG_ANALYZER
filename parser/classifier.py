@@ -1,6 +1,10 @@
 import re
 
 # High-Performance Pre-compiled Subsystem Regular Expressions
+FOTA_PATTERN = re.compile(
+    r"(?:\[FOT\]|FOTA|tcp\s+ota\s+request|console\s+ota\s+request)", re.IGNORECASE
+)
+
 GPS_PATTERN = re.compile(
     r"(?:\[PLA\]\s*GPS\s+RX|GPS\s+RX|\$GPS[, ])", re.IGNORECASE
 )
@@ -29,10 +33,18 @@ SYSTEM_PATTERN = re.compile(
 def classify(line, line_number=None):
     """
     Inspect a raw automotive telemetry log line and return an event dictionary
-    categorized by subsystem domain (GPS, BATTERY, CAN, NET, AIS, SYSTEM).
+    categorized by subsystem domain (FOTA, GPS, BATTERY, CAN, NET, AIS, SYSTEM).
     """
     if not line:
         return None
+
+    # Check FOTA & Remote Updates first
+    if FOTA_PATTERN.search(line):
+        return {
+            "type": "FOTA",
+            "raw": line,
+            "line_number": line_number,
+        }
 
     # Check GPS
     if GPS_PATTERN.search(line):

@@ -1,0 +1,50 @@
+# Automotive Firmware Over-The-Air (FOTA) & Configuration Telemetry Knowledge Base
+# Standards: Automotive Telematics Remote Firmware & Parameter Update Protocol
+
+fota:
+  parameters:
+    ota_command:
+      name: "OTA Configuration Command"
+      symbol: "OTA CMD"
+      type: "string"
+      description: "Remote command received via TCP socket or serial console"
+      critical: true
+
+    fota_state:
+      name: "FOTA Task Operational State"
+      symbol: "FOTA STATE"
+      type: "string"
+      description: "idle, active, downloading, flash_writing"
+      critical: true
+
+    queue_overflow:
+      name: "FOTA Network Queue Overflow"
+      symbol: "FOTA QUEUE FULL"
+      type: "boolean"
+      description: "True if FOTA network queue dropped a packet due to buffer exhaustion"
+      critical: true
+      rule_id: "FOTA_KN_001"
+
+  anomaly_rules:
+    fota_queue_overflow:
+      id: "FOTA_KN_001"
+      condition: "QUEUE_FULL == True"
+      severity: "HIGH"
+      why_it_happened: "FOTA transmission network queue became full; outgoing telemetry or acknowledgment packet was dropped."
+      what_to_look_up: "Inspect TCP socket upload bandwidth, cellular latency, and FreeRTOS queue buffer sizing in firmware."
+      suggested_fix: "Increase qNET_TCP_AEPL queue depth or optimize TCP transmission acknowledgment timing."
+      root_causes:
+        - "cellular transmission delay"
+        - "unresponsive backend OTA server"
+        - "small RTOS queue buffer allocation"
+
+    fota_tcp_dropout:
+      id: "FOTA_KN_002"
+      condition: "TCP_DROPPED == True"
+      severity: "HIGH"
+      why_it_happened: "TCP connection to OTA server dropped during active download or parameter configuration."
+      what_to_look_up: "Check cellular signal quality (CSQ) and server keepalive timeouts."
+      suggested_fix: "Verify cellular link stability and implement exponential backoff resume download logic."
+      root_causes:
+        - "cellular base station handover"
+        - "server reset connection"

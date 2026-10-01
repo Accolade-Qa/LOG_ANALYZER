@@ -10,6 +10,7 @@ class SystemAgent(BaseAgent):
     Automotive System, RTOS & Power Management Agent.
     Monitors MCU CPU temperature, RTOS Heap allocation, system uptime (reboots),
     vehicle ignition signal, and power-saving sleep cycles.
+    Acts as the master power & lifecycle publisher for dependent subsystem agents.
     """
 
     def __init__(self):
@@ -25,6 +26,33 @@ class SystemAgent(BaseAgent):
         }
         self.parameters_config = self._load_parameters()
         self.anomaly_rules = self.parameters_config.get("anomaly_rules", {})
+
+    def register_reactive_subscriptions(self):
+        """Subscribe to FOTA and Battery events to supervise vehicle wakefulness."""
+        self.bus.subscribe("FOTA_DOWNLOAD_ACTIVE", self._on_fota_download_active)
+        self.bus.subscribe("BATTERY_BROWNOUT", self._on_battery_brownout)
+
+    def _on_fota_download_active(self, payload, sender):
+        """Reaction when FOTAAgent reports an ongoing firmware download."""
+        if self.system_state.get("in_sleep"):
+            # Critical coordination conflict: System in sleep while FOTA active
+            self.bus.record_collaboration(
+                consumer_agent="SYSTEM",
+                upstream_agent="FOTA",
+                relationship="WAKE_LOCK_CONFLICT",
+                evidence=f"System sleep active while FOTAAgent is downloading at {payload.get('pct')}%",
+                line_number=payload.get("line_number"),
+            )
+
+    def _on_battery_brownout(self, payload, sender):
+        """Reaction when BatteryAgent detects main battery voltage collapse."""
+        self.bus.record_collaboration(
+            consumer_agent="SYSTEM",
+            upstream_agent="BATTERY",
+            relationship="BROWNOUT_WARNING",
+            evidence=f"System notified of battery rail voltage sag ({payload.get('voltage')}V)",
+            line_number=payload.get("line_number"),
+        )
 
     def _load_parameters(self):
         params_file = self.knowledge_dir / "parameters.yaml"
@@ -75,11 +103,19 @@ class SystemAgent(BaseAgent):
 
     def handle(self, event):
         line = event.get("raw", "")
+        line_num = event.get("line_number")
         params = self._parse_system_line(line)
         if not params:
             return
 
         self.system_state["messages_received"] += 1
+
+        # Synchronize vehicle ignition state to blackboard and reactive bus
+        if "ignition" in params:
+            ign = params["ignition"]
+            self.system_state["last_ignition"] = ign
+            self.blackboard.set_ignition(ign, line_number=line_num)
+            self.bus.publish("IGNITION_CHANGED", {"ignition": ign, "line_number": line_num}, sender="SYSTEM")
 
         # Track RTOS heap exhaustion
         if "heap_ratio" in params:
@@ -127,6 +163,7 @@ class SystemAgent(BaseAgent):
             prev_uptime = self.system_state["last_uptime"]
             if uptime < prev_uptime and prev_uptime > 60:
                 # Reboot detected!
+                self.bus.publish("SYSTEM_REBOOT", {"prev_uptime": prev_uptime, "new_uptime": uptime, "line_number": line_num}, sender="SYSTEM")
                 self.open_session(
                     session_key="SYS_KN_003",
                     issue=f"SYS_KN_003: Unexpected MCU Watchdog Reboot Detected (Uptime dropped from {prev_uptime}s to {uptime}s)",
@@ -139,7 +176,11 @@ class SystemAgent(BaseAgent):
 
         # Track vehicle sleep cycles
         if params.get("in_sleep") or (params.get("ignition") == 0 and params.get("sleep_remaining")):
+            sleep_sec = params.get("sleep_remaining", 0)
             self.system_state["in_sleep"] = True
+            self.blackboard.set_sleep(True, sleep_remaining=sleep_sec, line_number=line_num)
+            self.bus.publish("SYSTEM_SLEEP_ENTER", {"sleep_remaining": sleep_sec, "line_number": line_num}, sender="SYSTEM")
+
             self.open_session(
                 session_key="SYS_KN_004",
                 issue="SYS_KN_004: Vehicle Ignition OFF - Low-Power Standby Sleep Active",
@@ -149,12 +190,15 @@ class SystemAgent(BaseAgent):
                 event=event,
             )
         elif params.get("ignition") == 1:
-            self.system_state["in_sleep"] = False
-            self.close_session(
-                "SYS_KN_004",
-                recovery_event=event,
-                recovery_message="Vehicle Ignition ON - TCU woken up to active operational mode",
-            )
+            if self.system_state.get("in_sleep"):
+                self.system_state["in_sleep"] = False
+                self.blackboard.set_sleep(False, sleep_remaining=0, line_number=line_num)
+                self.bus.publish("SYSTEM_SLEEP_EXIT", {"line_number": line_num}, sender="SYSTEM")
+                self.close_session(
+                    "SYS_KN_004",
+                    recovery_event=event,
+                    recovery_message="Vehicle Ignition ON - TCU woken up to active operational mode",
+                )
 
 
 system_agent = SystemAgent()
