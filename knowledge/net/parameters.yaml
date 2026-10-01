@@ -32,12 +32,41 @@ net:
       rule_id: "NET_KN_003"
 
     tcp_skt:
-      name: "Active TCP Sockets"
+      name: "Active TCP Sockets Bitfield"
       symbol: "TCP SKT"
-      type: "integer"
-      valid_range: [0, 10]
-      description: "Number of active socket descriptors connected"
-      critical: false
+      type: "string (3-digit binary status mask)"
+      valid_range: ["000", "111"]
+      format: "3-character binary bitmask [Bit2 Bit1 Bit0] -> [AIS/Primary, CHTP, CIP1]"
+      diagram: |
+        0 0 0
+        | | |
+        | | +----------- CIP1 (Customer IP 1 / Secondary Auxiliary Telemetry Socket)
+        | +------------- CHTP (Commercial HTTP / Telematics Portal Socket)
+        +--------------- AIS / Primary Socket (AIS-140 Regulatory Emergency Tracking Socket)
+      bits:
+        bit_2_leftmost:
+          name: "AIS / Primary Socket"
+          description: "Primary government/regulatory AIS-140 emergency tracking server socket (1=Connected, 0=Disconnected)"
+          criticality: "High"
+        bit_1_middle:
+          name: "CHTP"
+          description: "Commercial HTTP/TCP telematics portal socket for enterprise fleet management (1=Connected, 0=Disconnected)"
+          criticality: "Medium"
+        bit_0_rightmost:
+          name: "CIP1"
+          description: "Customer IP 1 auxiliary socket for OEM telemetry & diagnostic forwarding (1=Connected, 0=Disconnected)"
+          criticality: "Medium"
+      states:
+        "000": "All 3 sockets disconnected / closed (Modem offline or network detachment)"
+        "001": "Only CIP1 connected; AIS primary and CHTP disconnected"
+        "010": "Only CHTP connected; AIS primary and CIP1 disconnected"
+        "011": "CHTP and CIP1 connected; AIS primary disconnected"
+        "100": "Only AIS primary socket connected; secondary sockets disconnected"
+        "101": "AIS primary and CIP1 connected; CHTP disconnected"
+        "110": "AIS primary and CHTP connected; CIP1 disconnected"
+        "111": "All 3 sockets fully connected and active"
+      critical: true
+      rule_id: "NET_KN_006"
 
     mqtt_status:
       name: "MQTT Broker Connection Status"
@@ -54,6 +83,29 @@ net:
       type: "string"
       description: "Registered cellular carrier name (e.g. Jio, Airtel, Vodafone)"
       critical: false
+
+    login_packet:
+      name: "Telematics Device Login & Handshake Packet"
+      symbol: "GSM_TX 55AA,1"
+      type: "CSV ASCII Frame (Preamble 0x55AA)"
+      format: "|55AA,1,<socket_id>,<timestamp>,<imei>,<iccid>,<vin>,<fw_version>,<device_code>,<state>,<primary_server>,<primary_port>,<secondary_server>,<secondary_port>,...|"
+      description: "Initial registration and handshake packet sent by telematics device over TCP socket to backend servers upon establishing socket connection."
+      fields:
+        header: "55AA (Synchronization magic word)"
+        packet_type: "1 (Login / Registration handshake)"
+        socket_id: "TCP socket channel (e.g. 2)"
+        timestamp: "Unix epoch timestamp in UTC seconds"
+        imei: "15-digit TCU modem IMEI"
+        iccid: "20-digit SIM card identifier"
+        vin: "Vehicle Identification Number / Chassis Serial"
+        firmware_version: "Current TCU embedded firmware release"
+        device_code: "OEM hardware device model identifier"
+        primary_server: "AIS-140 backend endpoint (e.g. data.vahanshakti.in:4030)"
+        secondary_server: "Enterprise fleet portal endpoint (e.g. Device.vltsecurity.com:5478)"
+        battery_voltages: "External main battery (V) and internal backup battery (V)"
+        ignition: "Digital ignition line status (1=ON, 0=OFF)"
+      critical: true
+      rule_id: "NET_KN_008"
 
   anomaly_rules:
     cellular_poor_signal:
@@ -114,3 +166,40 @@ net:
       root_causes:
         - "transient network handshake delay"
         - "unregistered SIM card"
+
+    tcp_all_sockets_down:
+      id: "NET_KN_006"
+      condition: "TCP_SKT == '000' AND IGN == 1 AND CREG == 1"
+      severity: "HIGH"
+      why_it_happened: "All 3 TCP telematics sockets (AIS Primary, CHTP, CIP1) dropped while vehicle ignition is active and cellular baseband is attached."
+      what_to_look_up: "Verify TCP socket connection timeout, DNS resolution for backend server endpoints, cellular APN keepalive, and cellular data quota."
+      suggested_fix: "Inspect telematics socket reconnect state machine in RTOS; verify carrier APN firewall rules and remote server port availability."
+      root_causes:
+        - "remote telemetry servers unreachable or port blocked"
+        - "modem TCP socket exhaustion or internal stack lockup"
+        - "carrier data session terminated"
+
+    ais_primary_socket_down:
+      id: "NET_KN_007"
+      condition: "TCP_SKT[0] == '0' AND IGN == 1 AND CREG == 1"
+      severity: "HIGH"
+      why_it_happened: "AIS-140 regulatory primary tracking socket disconnected while vehicle ignition is ON (Bit 2 == 0)."
+      what_to_look_up: "Verify government/backend AIS-140 IP endpoint routing, SIM APN whitelist, and SSL/TLS certificate validity."
+      suggested_fix: "Trigger AIS socket reconnection sequence in TCU firmware."
+      root_causes:
+        - "AIS regulatory server endpoint down"
+        - "SIM APN routing policy blocking primary port"
+
+    login_handshake_timeout:
+      id: "NET_KN_008"
+      condition: "GSM_TX(55AA,1) sent AND no QIURC ACK response within 10s"
+      severity: "HIGH"
+      why_it_happened: "TCU transmitted login/registration packet (55AA,1) over TCP socket, but server did not acknowledge or return firmware/session handshake parameters."
+      what_to_look_up: "Verify backend server port availability (4030/5478), carrier APN firewall policy, and device IMEI/ICCID whitelisting in Vahan Shakti database."
+      suggested_fix: "Check remote server connectivity; inspect TCP ACK retries in RTOS network stack."
+      root_causes:
+        - "remote telematics server unreachable or down"
+        - "SIM APN routing blocking backend port"
+        - "device IMEI/ICCID unprovisioned on server"
+
+

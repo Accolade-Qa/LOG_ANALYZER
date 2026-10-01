@@ -25,6 +25,13 @@ fota:
       critical: true
       rule_id: "FOTA_KN_001"
 
+    state_configuration:
+      name: "State Government AIS-140 Server Configuration"
+      symbol: "STATE CONFIG"
+      type: "string"
+      description: "State-specific AIS-140 primary and secondary regulatory server IP and port configuration (e.g. MH, KL, DL, KA)"
+      critical: true
+
   anomaly_rules:
     fota_queue_overflow:
       id: "FOTA_KN_001"
@@ -48,3 +55,27 @@ fota:
       root_causes:
         - "cellular base station handover"
         - "server reset connection"
+
+    fota_state_handshake_timeout:
+      id: "FOTA_KN_003"
+      condition: "STATE_CONFIG_TIMEOUT == True"
+      severity: "HIGH"
+      why_it_happened: "Post-flash AIS-140 state configuration command (*SET#SWEMP#..., *SET#CHTP#..., *SET#CIP1#...) timed out waiting for device acknowledgment."
+      what_to_look_up: "Inspect modem AT command buffer, OTA command watchdog (60s), and device stateEnableSetStatus in backend."
+      suggested_fix: "Verify modem TCP socket 2 responsiveness and re-trigger state configuration command."
+      root_causes:
+        - "TCU busy executing flash installation"
+        - "cellular link drop during round-trip handshake"
+        - "unsupported state command format"
+
+    fota_state_migration_mismatch:
+      id: "FOTA_KN_004"
+      condition: "STATE_ENDPOINT_MISMATCH == True"
+      severity: "CRITICAL"
+      why_it_happened: "Device reconnected after FOTA reboot, but 55AA,1 login packet server IP/Port did not match newly configured Indian State endpoints."
+      what_to_look_up: "Inspect EEPROM / flash non-volatile storage commit for *SET#CIP1# or *SET#CHTP# commands."
+      suggested_fix: "Re-send state IP/port configuration commands and verify flash write persistence."
+      root_causes:
+        - "EEPROM write failure"
+        - "device rebooted before configuration committed to non-volatile memory"
+        - "state command syntax rejected by TCU firmware"

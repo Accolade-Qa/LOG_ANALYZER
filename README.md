@@ -161,3 +161,16 @@ LOG_ANALYZER/
 ├── README.md               # Project Documentation
 └── main.py                 # Application Entry Point & CLI
 ```
+---
+
+## Live Telemetry Streaming & Concurrent Copilot Modes
+
+Run live log file tailing with concurrent interactive Copilot:
+```powershell
+python main.py --mode tail --log-file logs/FOTA_REL_18_861564061380138_To_REL_05.log --copilot
+```
+
+Run live hardware UART serial stream directly from TCU COM port:
+```powershell
+python main.py --mode uart --port COM3 --baud 115200 --copilot
+```

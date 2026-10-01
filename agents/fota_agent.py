@@ -106,6 +106,25 @@ class FOTAAgent(BaseAgent):
         if "got tcp disconnected" in line.lower():
             params["tcp_disconnected"] = True
 
+        # 8. Match TCP OTA responses
+        tcp_resp = re.search(r"tcp\s+ota\s+response\s*[:=]\s*(.+)$", line, re.IGNORECASE)
+        if tcp_resp:
+            params["tcp_ota_resp"] = tcp_resp.group(1).strip()
+
+        # 9. Match Indian State AIS-140 configuration commands (from FOTA-Workflow.pdf)
+        if "*SET#SWEMP#" in line:
+            m_sw = re.search(r"\*SET#SWEMP#([^#]+)#", line)
+            if m_sw:
+                params["state_enable_cmd"] = m_sw.group(1).strip()
+        if "*SET#CIP1#" in line:
+            m_c1 = re.search(r"\*SET#CIP1#([^#]+)#(\d+)#", line)
+            if m_c1:
+                params["secondary_govt_ip_cmd"] = {"host": m_c1.group(1).strip(), "port": m_c1.group(2).strip()}
+        if "*SET#CHTP#" in line:
+            m_ch = re.search(r"\*SET#CHTP#([^#]+)#(\d+)#", line)
+            if m_ch:
+                params["primary_govt_ip_cmd"] = {"host": m_ch.group(1).strip(), "port": m_ch.group(2).strip()}
+
         return params
 
     def handle(self, event):
@@ -164,6 +183,18 @@ class FOTAAgent(BaseAgent):
                 "line": line_num,
                 "raw": line.strip(),
             })
+
+        if "state_enable_cmd" in params:
+            st = params["state_enable_cmd"]
+            self.bus.publish("STATE_ENABLE_COMMAND_SENT", {"state": st, "line_number": line_num}, sender="FOTA")
+
+        if "secondary_govt_ip_cmd" in params:
+            endpoint = params["secondary_govt_ip_cmd"]
+            self.bus.publish("STATE_SECONDARY_IP_COMMAND_SENT", {"endpoint": endpoint, "line_number": line_num}, sender="FOTA")
+
+        if "tcp_ota_resp" in params:
+            resp = params["tcp_ota_resp"]
+            self.bus.publish("STATE_CONFIG_ACK_RECEIVED", {"response": resp, "line_number": line_num}, sender="FOTA")
 
         if params.get("queue_full"):
             self.fota_state["queue_full_count"] += 1

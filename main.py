@@ -103,7 +103,19 @@ def main():
 
     if args.mode == "uart":
         print(f"Starting Live Hardware UART Analysis on port {args.port} @ {args.baud} baud...")
-        stream_uart_port(port=args.port, baudrate=args.baud, timeout=config["uart"]["timeout"])
+        if args.copilot:
+            import threading
+            uart_thread = threading.Thread(
+                target=stream_uart_port,
+                args=(args.port, args.baud, config["uart"]["timeout"]),
+                daemon=True,
+            )
+            uart_thread.start()
+            print(f"🚀 Live UART stream active on {args.port}! Launching live Copilot...")
+            run_interactive_copilot()
+            return
+        else:
+            stream_uart_port(port=args.port, baudrate=args.baud, timeout=config["uart"]["timeout"])
 
     elif args.mode == "tail":
         if not args.log_file:
@@ -113,11 +125,27 @@ def main():
             target_path = BASE_DIR / args.log_file
         print(f"Starting Live Tailing on growing file: {target_path}")
         analyzed_log_file = str(target_path)
-        stream_growing_file(
-            str(target_path),
-            poll_interval=config["live_tail"]["poll_interval"],
-            stop_on_idle_sec=config["live_tail"]["stop_on_idle_sec"],
-        )
+        if args.copilot:
+            import threading
+            tail_thread = threading.Thread(
+                target=stream_growing_file,
+                args=(str(target_path),),
+                kwargs={
+                    "poll_interval": config["live_tail"]["poll_interval"],
+                    "stop_on_idle_sec": None,
+                },
+                daemon=True,
+            )
+            tail_thread.start()
+            print(f"🚀 Live log tailing active on {target_path.name}! Launching live Copilot...")
+            run_interactive_copilot(log_path=analyzed_log_file)
+            return
+        else:
+            stream_growing_file(
+                str(target_path),
+                poll_interval=config["live_tail"]["poll_interval"],
+                stop_on_idle_sec=config["live_tail"]["stop_on_idle_sec"],
+            )
 
     else:
         # Standard static file mode

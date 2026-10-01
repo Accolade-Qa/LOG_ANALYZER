@@ -60,14 +60,49 @@ def load_all_knowledge():
                     KNOWLEDGE_REGISTRY[rule_key] = insight
                     SUGGESTED_FIXES_REGISTRY[rule_id] = fix
 
-            # Check top-level anomaly_rules
+            # Helper to process a parameters specification block
+            def process_parameters(params_block):
+                if not isinstance(params_block, dict):
+                    return
+                for param_key, param_def in params_block.items():
+                    if not isinstance(param_def, dict):
+                        continue
+                    p_name = param_def.get("name", param_key)
+                    symbol = param_def.get("symbol", param_key)
+                    desc = param_def.get("description", "")
+                    diag = param_def.get("diagram", "")
+                    why = f"{p_name} ({symbol}): {desc}"
+                    if diag:
+                        why += f"\nArchitecture Bitmask:\n{diag.strip()}"
+                    insight = {
+                        "id": symbol,
+                        "parameter": p_name,
+                        "symbol": symbol,
+                        "type": param_def.get("type"),
+                        "why": why,
+                        "lookup": param_def.get("format") or param_def.get("units") or "Automotive ECU telemetry parameter specification.",
+                        "fix": f"Verify hardware transceiver line integrity and RTOS driver status for {symbol}.",
+                        "details": param_def,
+                    }
+                    KNOWLEDGE_REGISTRY[symbol] = insight
+                    KNOWLEDGE_REGISTRY[symbol.lower()] = insight
+                    KNOWLEDGE_REGISTRY[param_key] = insight
+                    KNOWLEDGE_REGISTRY[param_key.lower()] = insight
+                    KNOWLEDGE_REGISTRY[p_name.lower()] = insight
+
+            # Check top-level anomaly_rules and parameters
             if "anomaly_rules" in data:
                 process_rules(data["anomaly_rules"])
+            if "parameters" in data:
+                process_parameters(data["parameters"])
 
-            # Check domain-nested sections (e.g. gps.anomaly_rules, battery.anomaly_rules)
+            # Check domain-nested sections (e.g. net.parameters, net.anomaly_rules)
             for top_key, top_val in data.items():
-                if isinstance(top_val, dict) and "anomaly_rules" in top_val:
-                    process_rules(top_val["anomaly_rules"])
+                if isinstance(top_val, dict):
+                    if "anomaly_rules" in top_val:
+                        process_rules(top_val["anomaly_rules"])
+                    if "parameters" in top_val:
+                        process_parameters(top_val["parameters"])
 
         except Exception as e:
             print(f"Warning: Failed to load knowledge file {yf.name}: {e}")
