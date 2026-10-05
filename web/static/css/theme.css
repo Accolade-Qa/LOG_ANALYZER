@@ -1,0 +1,129 @@
+/* Dark Industrial Slate Theme for Automotive Telemetry Workbench */
+
+:root {
+  --bg-main: #0b1120;
+  --bg-panel: #0f172a;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+  --border-color: #334155;
+  --border-focus: #38bdf8;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-cyan: #06b6d4;
+  --accent-blue: #3b82f6;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+  --accent-purple: #a855f7;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Monospace font for logs and telemetry */
+.font-mono-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Glowing Status Badges */
+.pulse-emerald {
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+}
+.pulse-amber {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+}
+.pulse-rose {
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.6);
+}
+.pulse-purple {
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+}
+
+/* Log Line Styling */
+.log-line {
+  line-height: 1.45;
+  padding: 1px 8px;
+  border-left: 2px solid transparent;
+  transition: background 0.1s ease;
+}
+.log-line:hover {
+  background-color: rgba(51, 65, 85, 0.4);
+}
+.log-line.highlighted {
+  background-color: rgba(56, 189, 248, 0.25) !important;
+  border-left-color: #38bdf8 !important;
+}
+
+/* Log Tag Badges */
+.tag-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  display: inline-block;
+  min-width: 48px;
+  text-align: center;
+}
+.tag-ERROR { background-color: rgba(244, 63, 94, 0.2); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.4); }
+.tag-WARN { background-color: rgba(245, 158, 11, 0.2); color: #fde68a; border: 1px solid rgba(245, 158, 11, 0.4); }
+.tag-FOTA { background-color: rgba(168, 85, 247, 0.2); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.4); }
+.tag-AT { background-color: rgba(6, 182, 212, 0.2); color: #a5f3fc; border: 1px solid rgba(6, 182, 212, 0.4); }
+.tag-CIP { background-color: rgba(59, 130, 246, 0.2); color: #bfdbfe; border: 1px solid rgba(59, 130, 246, 0.4); }
+.tag-GNSS { background-color: rgba(16, 185, 129, 0.2); color: #a7f3d0; border: 1px solid rgba(16, 185, 129, 0.4); }
+.tag-BATTERY { background-color: rgba(234, 179, 8, 0.2); color: #fef08a; border: 1px solid rgba(234, 179, 8, 0.4); }
+.tag-RAW { background-color: rgba(148, 163, 184, 0.15); color: #94a3b8; }
+
+/* Markdown styling in Copilot Responses */
+.copilot-body pre {
+  background-color: #0b1120;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  margin: 6px 0;
+}
+.copilot-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background-color: rgba(51, 65, 85, 0.5);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.82rem;
+  color: #38bdf8;
+}
+.copilot-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin: 8px 0;
+}
+.copilot-body th, .copilot-body td {
+  border: 1px solid #334155;
+  padding: 4px 8px;
+  text-align: left;
+}
+.copilot-body th {
+  background-color: #1e293b;
+  color: #38bdf8;
+}

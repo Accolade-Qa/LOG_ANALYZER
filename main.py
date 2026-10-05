@@ -66,9 +66,27 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["file", "tail", "uart"],
+        choices=["file", "tail", "uart", "web"],
         default="file",
-        help="Ingestion mode: file (static log file), tail (growing log file), or uart (live COM port)",
+        help="Ingestion mode: file (static log file), tail (growing log file), uart (live COM port), or web (interactive Web Workbench)",
+    )
+    parser.add_argument(
+        "--web-host",
+        type=str,
+        default="127.0.0.1",
+        help="Host to bind Web Workbench server (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=8000,
+        help="Port for Web Workbench server (default: 8000)",
+    )
+    parser.add_argument(
+        "--open-browser",
+        action="store_true",
+        default=True,
+        help="Automatically open default web browser when in web mode",
     )
     parser.add_argument(
         "--log-file",
@@ -100,6 +118,24 @@ def main():
     reset_all_agents()
 
     analyzed_log_file = None
+
+    if args.mode == "web":
+        import webbrowser
+        from web.api_server import start_server
+        url = f"http://{args.web_host}:{args.web_port}"
+        print("\n" + "=" * 78)
+        print("⚡ TCU DIAGNOSTIC WORKBENCH — FASTAPI WEB MODE")
+        print(f"📡 Real-time Dashboard running at: {url}")
+        print("Telemetry HUD, Virtualized Log Stream, and AI Copilot active.")
+        print("Press Ctrl+C to terminate the server.")
+        print("=" * 78 + "\n")
+
+        if args.open_browser:
+            import threading
+            threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+        start_server(host=args.web_host, port=args.web_port)
+        return
 
     if args.mode == "uart":
         print(f"Starting Live Hardware UART Analysis on port {args.port} @ {args.baud} baud...")
